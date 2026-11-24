@@ -175,6 +175,14 @@ public sealed class IncluirLibWindow : Window
         {
             _preview.Text = "Jenkins: " + ex.Message;
         }
+        catch (TaskCanceledException)
+        {
+            _preview.Text = "Jenkins: tempo esgotado aguardando resposta.";
+        }
+        catch (Exception ex) when (ex is UriFormatException or ArgumentException)
+        {
+            _preview.Text = "URL do Jenkins inválida: " + ex.Message;
+        }
         finally
         {
             _preview_btn.IsEnabled = true;
@@ -209,10 +217,21 @@ public sealed class IncluirLibWindow : Window
             MessageDialog.Info(this, "Pronto", $"Lib {Spec().Name} incluída em {ok.Count} modelo(s).\n\nCópia dos originais:\n{backup}");
             DialogResult = true;
         }
-        catch (Exception ex) when (ex is LibEditException or HttpRequestException or IOException or UnauthorizedAccessException)
+        catch (LibEditException ex)
+        {
+            // falha no Jenkins ja explica o que foi (ou nao) restaurado
+            MessageDialog.Info(this, "Não foi possível gravar", ex.Message);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or UriFormatException or ArgumentException)
+        {
+            var reason = ex is TaskCanceledException ? "tempo esgotado aguardando resposta" : ex.Message;
+            MessageDialog.Info(this, "Não foi possível gravar", "Jenkins: " + reason +
+                "\n\nNenhum arquivo local foi alterado.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             MessageDialog.Info(this, "Não foi possível gravar", ex.Message +
-                "\n\nSe o erro foi no Jenkins, nenhum arquivo local foi alterado.");
+                "\n\nAlguns arquivos podem ter sido alterados. Os originais estão na pasta de backups (%APPDATA%\\MonitorSVN\\backups).");
         }
     }
 }

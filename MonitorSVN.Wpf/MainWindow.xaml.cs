@@ -76,7 +76,11 @@ public partial class MainWindow : Window
         _scheduler.Start();
         _statusTimer.Start();
 
-        Loaded += async (_, _) => { if (_dirs.Count > 0) await RunNowAsync(); };
+        Loaded += async (_, _) =>
+        {
+            if (_store.LoadWarnings.Count > 0) ShowWarning(string.Join(Environment.NewLine, _store.LoadWarnings));
+            if (_dirs.Count > 0) await RunNowAsync();
+        };
         StateChanged += (_, _) => { if (WindowState == WindowState.Minimized) HideToTray(); };
         Closing += OnClosing;
     }
@@ -115,10 +119,19 @@ public partial class MainWindow : Window
             _store.Save(_settings);
             _store.SaveEntries(_entries);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             AppLog.Warn("Nao foi possivel salvar as configuracoes.", ex);
             ShowWarning($"Não foi possível salvar: {ex.Message}");
+        }
+    }
+
+    private void SaveEntriesSafe()
+    {
+        try { _store.SaveEntries(_entries); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Warn("Nao foi possivel salvar o historico.", ex);
         }
     }
 
@@ -215,7 +228,8 @@ public partial class MainWindow : Window
         try
         {
             var messages = await _service.RunAsync(_settings, new Progress<string>(m => lblInfo.Text = m), CancellationToken.None);
-            if (JenkinsClient.SendsCredentialsInsecurely(_settings.JenkinsUrl, _settings.JenkinsUser))
+            if (JenkinsClient.SendsCredentialsInsecurely(_settings.JenkinsUrl, _settings.JenkinsUser) ||
+                JenkinsClient.SendsCredentialsInsecurely(_settings.BuildUrlTemplate, _settings.JenkinsUser))
                 messages.Insert(0, "Atenção: a URL do Jenkins usa HTTP (sem criptografia) em outra máquina. " +
                                    "Usuário e senha trafegam em texto legível na rede. Use HTTPS.");
             foreach (var m in messages) AppLog.Warn(m);
@@ -244,21 +258,49 @@ public partial class MainWindow : Window
 
     private async void RefreshStatus()
     {
-        _service.RefreshStatus(_settings);
+        var finished = _service.RefreshStatus(_settings);
         RefreshGrid();
-        try { _store.SaveEntries(_entries); }
-        catch (IOException ex) { AppLog.Warn("Nao foi possivel salvar o historico.", ex); }
+        SaveEntriesSafe();
+
+        // um build terminou: commits da mesma versao que estavam esperando por ele ja podem ser disparados
+        if (finished && !_running) await TriggerWaitingAsync();
 
         if (_resolvingSuspects) return;
         _resolvingSuspects = true;
         try
         {
             await _service.ResolveSuspectsAsync(_settings, CancellationToken.None);
-            _store.SaveEntries(_entries);
+            SaveEntriesSafe();
         }
-        catch (IOException ex) { AppLog.Warn("Nao foi possivel salvar o historico.", ex); }
         catch (Exception ex) { AppLog.Warn("Pesquisa do responsavel pelo erro falhou.", ex); }
         finally { _resolvingSuspects = false; }
+    }
+
+    private async Task TriggerWaitingAsync()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        if (!_entries.Any(e => e.Status == BuildStatus.Pending && !e.Dismissed && MonitorService.IsRecent(e, today))) return;
+
+        _running = true;
+        btnRun.IsEnabled = false;
+        try
+        {
+            var messages = await _service.TriggerPendingAsync(_settings, null, CancellationToken.None);
+            foreach (var m in messages) AppLog.Warn(m);
+            if (messages.Count > 0) ShowWarning(string.Join(Environment.NewLine, messages));
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Disparo dos pendentes falhou.", ex);
+            ShowWarning(ex.Message);
+        }
+        finally
+        {
+            btnRun.IsEnabled = true;
+            _running = false;
+            RefreshGrid();
+            SaveEntriesSafe();
+        }
     }
 
     // ---------------------------------------------------------------- menu da grade: Jenkins e copiar
@@ -340,13 +382,39 @@ public partial class MainWindow : Window
     private async void MnuReprocess_Click(object sender, RoutedEventArgs e)
     {
         if (grid.SelectedItem is not LogEntry entry) return;
-        CollectSettings();
-        AppLog.Info($"Reprocessar solicitado: r{entry.Revision} ({entry.Version}).");
-        var messages = await _service.ReprocessAsync(entry, _settings, CancellationToken.None);
-        foreach (var m in messages) AppLog.Warn(m);
-        if (messages.Count > 0) ShowWarning(string.Join(Environment.NewLine, messages));
-        RefreshGrid();
-        _store.SaveEntries(_entries);
+        if (_running)
+        {
+            MessageDialog.Info(this, "Monitor SVN", "Há uma verificação em andamento. Aguarde ela terminar para reprocessar.");
+            return;
+        }
+        if (entry.Status == BuildStatus.InProgress &&
+            !MessageDialog.Confirm(this, "Atenção",
+                $"A r{entry.Revision} ({entry.Version}) ainda consta como em andamento. " +
+                "Só reprocesse se o build travou ou foi perdido no Jenkins. Disparar de novo?"))
+            return;
+
+        _running = true;
+        btnRun.IsEnabled = false;
+        try
+        {
+            CollectSettings();
+            AppLog.Info($"Reprocessar solicitado: r{entry.Revision} ({entry.Version}).");
+            var messages = await _service.ReprocessAsync(entry, _settings, CancellationToken.None);
+            foreach (var m in messages) AppLog.Warn(m);
+            if (messages.Count > 0) ShowWarning(string.Join(Environment.NewLine, messages));
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error($"Reprocessar r{entry.Revision} falhou.", ex);
+            ShowWarning(ex.Message);
+        }
+        finally
+        {
+            btnRun.IsEnabled = true;
+            _running = false;
+            RefreshGrid();
+            SaveEntriesSafe();
+        }
     }
 
     private void MnuDelete_Click(object sender, RoutedEventArgs e)

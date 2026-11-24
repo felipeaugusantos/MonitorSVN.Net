@@ -19,11 +19,18 @@ public static class SvnLogParser
         return d;
     }
 
+    /// <summary>Commits de um unico dia.</summary>
+    public static IReadOnlyList<SvnChange> Parse(string xml, string dir, DateOnly day, IEnumerable<string> ignoredUsers) =>
+        Parse(xml, dir, day, day, ignoredUsers);
+
     /// <summary>
-    /// Le a saida de "svn log -v -q --xml" e devolve, para cada commit do dia, as versoes (primeira
-    /// pasta abaixo do diretorio monitorado) que ele alterou. Copias (copyfrom) sao ignoradas, como no app Delphi.
+    /// Le a saida de "svn log -v -q --xml" e devolve, para cada commit entre <paramref name="from"/> e
+    /// <paramref name="to"/> (inclusive, horario local), as versoes (primeira pasta abaixo do diretorio
+    /// monitorado) que ele alterou. Copias (copyfrom) sao ignoradas, como no app Delphi, e arquivos soltos
+    /// direto no diretorio monitorado nao sao versoes.
     /// </summary>
-    public static IReadOnlyList<SvnChange> Parse(string xml, string dir, DateOnly day, IEnumerable<string> ignoredUsers)
+    public static IReadOnlyList<SvnChange> Parse(string xml, string dir, DateOnly from, DateOnly to,
+        IEnumerable<string> ignoredUsers)
     {
         var ignored = new HashSet<string>(ignoredUsers, StringComparer.OrdinalIgnoreCase);
         var result = new List<SvnChange>();
@@ -40,7 +47,8 @@ public static class SvnLogParser
                 continue;
 
             var timestamp = utc.LocalDateTime;
-            if (DateOnly.FromDateTime(timestamp) != day) continue;
+            var day = DateOnly.FromDateTime(timestamp);
+            if (day < from || day > to) continue;
             if (ignored.Contains(author)) continue;
 
             var versions = new SortedSet<string>(StringComparer.Ordinal);
@@ -52,8 +60,12 @@ public static class SvnLogParser
                 var idx = text.IndexOf(dir, StringComparison.OrdinalIgnoreCase);
                 if (idx < 0) continue;
 
-                var segment = text[(idx + dir.Length)..].Split('/')[0];
-                if (segment.Length > 0) versions.Add(segment);
+                var rest = text[(idx + dir.Length)..];
+                var segment = rest.Split('/')[0];
+                // arquivo solto no diretorio monitorado (ex.: leiame.txt): nao e uma pasta de versao
+                var isLooseFile = !rest.Contains('/') &&
+                                  string.Equals((string?)path.Attribute("kind"), "file", StringComparison.OrdinalIgnoreCase);
+                if (segment.Length > 0 && !isLooseFile) versions.Add(segment);
             }
 
             foreach (var v in versions)

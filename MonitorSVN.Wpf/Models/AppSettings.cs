@@ -32,6 +32,9 @@ public sealed class AppSettings
     /// <summary>"Light", "Dark" ou vazio (segue o tema do Windows).</summary>
     public string Theme { get; set; } = "";
 
+    /// <summary>Inicio da ultima varredura em que todos os diretorios foram lidos. A proxima consulta o SVN a partir desse dia.</summary>
+    public DateTime? LastScan { get; set; }
+
     /// <summary>Senha do Jenkins protegida pelo DPAPI do Windows (somente este usuario le).</summary>
     public string ProtectedPassword { get; set; } = "";
 

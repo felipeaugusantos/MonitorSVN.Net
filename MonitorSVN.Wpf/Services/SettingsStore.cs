@@ -23,6 +23,9 @@ public sealed class SettingsStore
     private string SettingsPath => Path.Combine(_folder, "settings.json");
     private string EntriesPath => Path.Combine(_folder, "entries.json");
 
+    /// <summary>Problemas encontrados ao carregar (ex.: arquivo corrompido guardado à parte), para avisar o usuario.</summary>
+    public List<string> LoadWarnings { get; } = new();
+
     public AppSettings Load()
     {
         AppSettings s;
@@ -32,8 +35,15 @@ public sealed class SettingsStore
                 ? JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath)) ?? new AppSettings()
                 : new AppSettings();
         }
-        catch (Exception ex) when (ex is JsonException or IOException)
+        catch (JsonException ex)
         {
+            Quarantine(SettingsPath, "Configurações", ex);
+            s = new AppSettings();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Warn($"Nao foi possivel ler {SettingsPath}.", ex);
+            LoadWarnings.Add($"Não foi possível ler as configurações ({ex.Message}). Usando os valores padrão.");
             s = new AppSettings();
         }
 
@@ -45,7 +55,7 @@ public sealed class SettingsStore
     public void Save(AppSettings s)
     {
         s.ProtectedPassword = s.RememberCredentials ? Protect(s.Password) : "";
-        File.WriteAllText(SettingsPath, JsonSerializer.Serialize(s, Json));
+        WriteAtomic(SettingsPath, JsonSerializer.Serialize(s, Json));
     }
 
     public List<LogEntry> LoadEntries()
@@ -56,14 +66,54 @@ public sealed class SettingsStore
                 ? JsonSerializer.Deserialize<List<LogEntry>>(File.ReadAllText(EntriesPath)) ?? new()
                 : new();
         }
-        catch (Exception ex) when (ex is JsonException or IOException)
+        catch (JsonException ex)
         {
+            Quarantine(EntriesPath, "Histórico", ex);
+            return new();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Warn($"Nao foi possivel ler {EntriesPath}.", ex);
+            LoadWarnings.Add($"Não foi possível ler o histórico ({ex.Message}).");
             return new();
         }
     }
 
     public void SaveEntries(IEnumerable<LogEntry> entries) =>
-        File.WriteAllText(EntriesPath, JsonSerializer.Serialize(entries, Json));
+        WriteAtomic(EntriesPath, JsonSerializer.Serialize(entries, Json));
+
+    /// <summary>
+    /// Grava num .tmp (forcando a ida ao disco) e so entao troca pelo arquivo final. Se o processo cair ou
+    /// faltar energia no meio, o arquivo anterior continua inteiro.
+    /// </summary>
+    private static void WriteAtomic(string path, string content)
+    {
+        var tmp = path + ".tmp";
+        using (var stream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            var bytes = new UTF8Encoding(false).GetBytes(content);
+            stream.Write(bytes, 0, bytes.Length);
+            stream.Flush(flushToDisk: true);
+        }
+        File.Move(tmp, path, overwrite: true);
+    }
+
+    /// <summary>Guarda o arquivo ilegivel ao lado (para nao ser sobrescrito pelos padroes) e avisa.</summary>
+    private void Quarantine(string path, string what, Exception ex)
+    {
+        var copy = $"{path}.corrompido-{DateTime.Now:yyyyMMdd-HHmmss}";
+        try
+        {
+            File.Move(path, copy);
+            AppLog.Error($"{path} corrompido; guardado como {copy}.", ex);
+            LoadWarnings.Add($"{what}: arquivo corrompido. Foi guardado como {copy} e os valores padrão foram carregados.");
+        }
+        catch (Exception moveEx) when (moveEx is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Error($"{path} corrompido e nao foi possivel guarda-lo a parte.", moveEx);
+            LoadWarnings.Add($"{what}: arquivo corrompido ({path}).");
+        }
+    }
 
     private static string Protect(string plain)
     {

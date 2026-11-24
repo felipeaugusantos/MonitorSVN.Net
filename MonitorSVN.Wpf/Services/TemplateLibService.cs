@@ -116,6 +116,10 @@ public static class TemplateLibService
         {
             plan.Error = ex.Message;
         }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            plan.Error = "Jenkins: tempo esgotado aguardando resposta.";
+        }
         return plan;
     }
 
@@ -140,8 +144,7 @@ public static class TemplateLibService
         }
 
         if (jenkins is not null)
-            foreach (var plan in plans.Where(p => p.Ok && p.NewJobConfig is not null))
-                await jenkins.UpdateJobConfigAsync(plan.Template, plan.NewJobConfig!, ct);
+            await UpdateJobsOrRollBackAsync(plans, jenkins, backup, ct);
 
         foreach (var plan in plans.Where(p => p.Ok))
         {
@@ -152,5 +155,51 @@ public static class TemplateLibService
         }
         AppLog.Info($"Copia dos originais da inclusao de {libName}: {backup}");
         return backup;
+    }
+
+    /// <summary>
+    /// Atualiza os jobs-modelo um a um. Se um falhar, volta os ja atualizados ao config original: sem isso,
+    /// o job ficaria com a lib e a pasta-modelo sem, e a proxima tentativa recusaria o modelo ("ja existe").
+    /// </summary>
+    private static async Task UpdateJobsOrRollBackAsync(IReadOnlyList<TemplatePlan> plans, JenkinsClient jenkins,
+        string backup, CancellationToken ct)
+    {
+        var updated = new List<TemplatePlan>();
+        foreach (var plan in plans.Where(p => p.Ok && p.NewJobConfig is not null))
+        {
+            try
+            {
+                await jenkins.UpdateJobConfigAsync(plan.Template, plan.NewJobConfig!, ct);
+                updated.Add(plan);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+                var notRestored = new List<string>();
+                foreach (var done in updated)
+                {
+                    try
+                    {
+                        // CancellationToken.None: a reversao precisa terminar mesmo que a operacao tenha sido cancelada
+                        await jenkins.UpdateJobConfigAsync(done.Template, done.OldJobConfig!, CancellationToken.None);
+                        AppLog.Info($"Job '{done.Template}' restaurado apos falha em '{plan.Template}'.");
+                    }
+                    catch (Exception rollbackEx) when (rollbackEx is HttpRequestException or TaskCanceledException)
+                    {
+                        AppLog.Error($"Nao foi possivel restaurar o job '{done.Template}'.", rollbackEx);
+                        notRestored.Add(done.Template);
+                    }
+                }
+
+                var reason = ex is TaskCanceledException ? "tempo esgotado aguardando resposta" : ex.Message;
+                var message = $"Falha ao atualizar o job '{plan.Template}' no Jenkins: {reason}. Nenhum arquivo local foi alterado.";
+                if (updated.Count > 0)
+                    message += notRestored.Count == 0
+                        ? " Os jobs já atualizados foram restaurados."
+                        : $" ATENÇÃO: não foi possível restaurar o(s) job(s) {string.Join(", ", notRestored)}; " +
+                          $"o config.xml original está em {backup}.";
+                AppLog.Warn(message, ex);
+                throw new LibEditException(message);
+            }
+        }
     }
 }
