@@ -178,7 +178,7 @@ public sealed class MonitorService
                 }
             }
 
-            ClearResultFiles(settings, entry.Version);
+            await ClearResultFilesAsync(settings, entry, ct);
             await jenkins.TriggerBuildAsync(settings.BuildUrlTemplate, entry.Version, ct);
 
             entry.ErrorDetail = null;
@@ -201,26 +201,55 @@ public sealed class MonitorService
 
     /// <summary>
     /// Apaga concluido.txt/erro.txt que tenham sobrado de um build anterior, para nao serem atribuidos ao novo.
-    /// Se nao conseguir apagar, falha: melhor nao disparar do que marcar o resultado errado.
+    /// Arquivo em uso (ex.: o build abortado ainda o segura) e tentado de novo por alguns segundos. Se continuar
+    /// preso, o disparo segue mesmo assim e o arquivo velho e ignorado ate ser reescrito (ver StaleErrorStamp).
     /// </summary>
-    public static void ClearResultFiles(AppSettings settings, string version)
+    public static async Task ClearResultFilesAsync(AppSettings settings, LogEntry entry, CancellationToken ct,
+        TimeSpan? retryDelay = null)
     {
-        var folder = Path.Combine(settings.GenerationRoot, version);
+        entry.StaleDoneStamp = entry.StaleErrorStamp = null;
+        var folder = Path.Combine(settings.GenerationRoot, entry.Version);
         foreach (var name in new[] { DoneFile, ErrorFile })
         {
             var path = Path.Combine(folder, name);
             if (!File.Exists(path)) continue;
-            try
+
+            var deleted = false;
+            for (var attempt = 1; attempt <= ClearAttempts && !deleted; attempt++)
             {
-                File.Delete(path);
-                AppLog.Info($"Resultado antigo removido antes do disparo: {path}");
+                try
+                {
+                    File.Delete(path);
+                    deleted = true;
+                    AppLog.Info($"Resultado antigo removido antes do disparo: {path}");
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    if (attempt == ClearAttempts)
+                        AppLog.Warn($"{path} continua em uso.", ex);
+                    else
+                        await Task.Delay(retryDelay ?? TimeSpan.FromSeconds(1), ct);
+                }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                throw new IOException($"Nao foi possivel apagar o resultado anterior ({path}): {ex.Message}", ex);
-            }
+            if (deleted) continue;
+
+            var stamp = WriteStamp(path);
+            if (name == ErrorFile) entry.StaleErrorStamp = stamp; else entry.StaleDoneStamp = stamp;
+            AppLog.Warn($"Disparo segue com {path} ainda na pasta (em uso); ele sera ignorado ate o proximo build reescreve-lo.");
         }
     }
+
+    private const int ClearAttempts = 5;
+
+    private static DateTime? WriteStamp(string path)
+    {
+        try { return File.GetLastWriteTimeUtc(path); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    /// <summary>O arquivo existe e nao e o resto velho que o app ja sabe que pertence a um build anterior.</summary>
+    private static bool IsResult(string path, DateTime? staleStamp) =>
+        File.Exists(path) && !(staleStamp is { } stale && WriteStamp(path) == stale);
 
     /// <summary>Procura concluido.txt / erro.txt na pasta de geracao das versoes em andamento.</summary>
     /// <returns>true se alguma linha terminou (Gerado ou Erro).</returns>
@@ -233,7 +262,7 @@ public sealed class MonitorService
             var done = Path.Combine(folder, DoneFile);
             var error = Path.Combine(folder, ErrorFile);
 
-            if (File.Exists(done))
+            if (IsResult(done, entry.StaleDoneStamp))
             {
                 entry.FinishedAt = DateTime.Now;
                 entry.Status = BuildStatus.Generated;
@@ -242,7 +271,7 @@ public sealed class MonitorService
                 TryDelete(done);
                 VarreduraNotifier.Notify(settings, entry);
             }
-            else if (File.Exists(error))
+            else if (IsResult(error, entry.StaleErrorStamp))
             {
                 entry.ErrorDetail = ReadErrorSnippet(error);
                 entry.FinishedAt = DateTime.Now;
@@ -262,7 +291,7 @@ public sealed class MonitorService
         try { File.Delete(path); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // ClearResultFiles tenta de novo antes do proximo disparo desta versao
+            // ClearResultFilesAsync tenta de novo antes do proximo disparo desta versao
             AppLog.Warn($"Nao foi possivel apagar {path}.", ex);
         }
     }

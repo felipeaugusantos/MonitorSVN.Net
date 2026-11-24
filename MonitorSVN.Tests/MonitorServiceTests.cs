@@ -107,24 +107,61 @@ public class MonitorServiceTests : IDisposable
     }
 
     [Fact]
-    public void ClearResultFiles_removes_leftovers_from_a_previous_build()
+    public async Task ClearResultFiles_removes_leftovers_from_a_previous_build()
     {
         var settings = new AppSettings { GenerationRoot = _root };
         var folder = Path.Combine(_root, Version);
         Directory.CreateDirectory(folder);
         File.WriteAllText(Path.Combine(folder, MonitorService.DoneFile), "concluido");
         File.WriteAllText(Path.Combine(folder, MonitorService.ErrorFile), "erro");
+        var entry = Entry("60", DateTime.Now, BuildStatus.Pending);
 
-        MonitorService.ClearResultFiles(settings, Version);
+        await MonitorService.ClearResultFilesAsync(settings, entry, CancellationToken.None);
 
         Assert.False(File.Exists(Path.Combine(folder, MonitorService.DoneFile)));
         Assert.False(File.Exists(Path.Combine(folder, MonitorService.ErrorFile)));
+        Assert.Null(entry.StaleErrorStamp);
     }
 
     [Fact]
-    public void ClearResultFiles_accepts_a_missing_folder()
+    public async Task ClearResultFiles_accepts_a_missing_folder()
     {
-        MonitorService.ClearResultFiles(new AppSettings { GenerationRoot = _root }, "nao-existe");
+        await MonitorService.ClearResultFilesAsync(new AppSettings { GenerationRoot = _root },
+            Entry("61", DateTime.Now, BuildStatus.Pending), CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task A_result_file_that_stays_locked_does_not_block_and_is_ignored_until_rewritten()
+    {
+        var settings = new AppSettings { GenerationRoot = _root };
+        var folder = Path.Combine(_root, Version);
+        Directory.CreateDirectory(folder);
+        var errorPath = Path.Combine(folder, MonitorService.ErrorFile);
+        File.WriteAllText(errorPath, "Fatal: erro do build abortado");
+
+        var entry = Entry("62", DateTime.Now, BuildStatus.Pending);
+        var service = new MonitorService(new ObservableCollection<LogEntry> { entry });
+
+        // outro processo segura o arquivo: nao da para apagar, mas o disparo nao pode falhar por isso
+        using (new FileStream(errorPath, FileMode.Open, FileAccess.Read, FileShare.None))
+            await MonitorService.ClearResultFilesAsync(settings, entry, CancellationToken.None, TimeSpan.FromMilliseconds(5));
+
+        Assert.NotNull(entry.StaleErrorStamp);
+        Assert.True(File.Exists(errorPath));
+
+        // build novo em andamento: o erro.txt velho (mesma data) nao conta
+        entry.Status = BuildStatus.InProgress;
+        entry.StartedAt = DateTime.Now;
+        Assert.False(service.RefreshStatus(settings));
+        Assert.Equal(BuildStatus.InProgress, entry.Status);
+        Assert.True(File.Exists(errorPath));
+
+        // o build novo escreve o seu proprio erro.txt: agora vale
+        File.WriteAllText(errorPath, "Fatal: erro do build novo");
+        File.SetLastWriteTimeUtc(errorPath, entry.StaleErrorStamp!.Value.AddMinutes(5));
+        Assert.True(service.RefreshStatus(settings));
+        Assert.Equal(BuildStatus.Error, entry.Status);
+        Assert.Contains("build novo", entry.ErrorDetail);
     }
 }
 

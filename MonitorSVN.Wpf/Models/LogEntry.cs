@@ -32,6 +32,13 @@ public sealed class LogEntry : INotifyPropertyChanged
     public bool AlertedError { get; set; }
     public bool AlertedSlow { get; set; }
 
+    /// <summary>
+    /// Data (UTC) de um erro.txt / concluido.txt velho que nao pode ser apagado (arquivo em uso) antes do disparo.
+    /// Enquanto o arquivo tiver essa mesma data, ele e de um build anterior e nao conta como resultado deste.
+    /// </summary>
+    public DateTime? StaleErrorStamp { get; set; }
+    public DateTime? StaleDoneStamp { get; set; }
+
     /// <summary>Quando o build foi disparado no Jenkins. Nulo se ainda não foi disparado.</summary>
     public DateTime? StartedAt { get; set; }
 
