@@ -15,15 +15,19 @@ public sealed class ResumoWindow : Window
     private readonly ComboBox _period = new();
     private readonly TextBlock _totals = new() { TextWrapping = TextWrapping.Wrap, LineHeight = 22 };
     private readonly TextBlock _note = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 10, 0, 0) };
+    private const double ChartHeight = 96;
     private readonly StackPanel _content = new();
+    private readonly StackPanel _chartLabel = new();
+    private readonly System.Windows.Controls.Primitives.UniformGrid _chart = new() { Rows = 1, Height = ChartHeight, Margin = new Thickness(0, 4, 0, 0) };
+    private readonly Grid _chartAxis = new() { Margin = new Thickness(0, 4, 0, 0) };
     private readonly TextBlock _empty = new()
     {
         TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 24, 0, 8), Visibility = Visibility.Collapsed,
         Text = "Nenhum commit registrado neste período.\n\nO histórico é gravado neste computador, a cada verificação " +
                "do app. Em uma máquina nova ou recém-instalada ele começa vazio e vai enchendo com o uso."
     };
-    private readonly DataGrid _days = NewGrid(210);
-    private readonly DataGrid _authors = NewGrid(150);
+    private readonly DataGrid _days = NewGrid(150);
+    private readonly DataGrid _authors = NewGrid(120);
 
     public ResumoWindow(Window owner, IEnumerable<LogEntry> entries)
     {
@@ -69,6 +73,11 @@ public sealed class ResumoWindow : Window
         panel.Children.Add(_empty);
         _content.Children.Add(Label("Totais"));
         _content.Children.Add(_totals);
+        _chartLabel.Children.Add(Label("Commits por dia"));
+        _chartLabel.Children.Add(_chart);
+        _chartLabel.Children.Add(_chartAxis);
+        _chartLabel.Children.Add(Legend());
+        _content.Children.Add(_chartLabel);
         _content.Children.Add(Label("Por dia"));
         _content.Children.Add(_days);
         _content.Children.Add(Label("Por autor (commits e quantos terminaram em erro)"));
@@ -134,6 +143,79 @@ public sealed class ResumoWindow : Window
         return l;
     }
 
+    private static StackPanel Legend()
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
+        foreach (var (text, brush) in new[] { ("Gerados", "SuccessBrush"), ("Erros", "DangerBrush"), ("Outros", "BorderStrongBrush") })
+        {
+            var dot = new System.Windows.Shapes.Rectangle { Width = 10, Height = 10, RadiusX = 2, RadiusY = 2, Margin = new Thickness(0, 0, 5, 0) };
+            dot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, brush);
+            var label = new TextBlock { Text = text, FontSize = 12, Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
+            label.SetResourceReference(TextBlock.ForegroundProperty, "TextMutedBrush");
+            panel.Children.Add(dot);
+            panel.Children.Add(label);
+        }
+        return panel;
+    }
+
+    /// <summary>Barras empilhadas por dia (todos os dias do período, inclusive os sem commit): Gerados, Erros e Outros.</summary>
+    private void DrawChart(Summary s, int days)
+    {
+        _chart.Children.Clear();
+        _chartAxis.Children.Clear();
+        _chartAxis.ColumnDefinitions.Clear();
+        _chartLabel.Visibility = days <= 1 ? Visibility.Collapsed : Visibility.Visible;   // 1 dia so: a tabela basta
+        if (days <= 1) return;
+
+        var byDay = s.ByDay.ToDictionary(d => d.Day);
+        var max = Math.Max(1, s.ByDay.Max(d => d.Commits));
+        for (var i = 0; i < days; i++)
+        {
+            var day = s.From.AddDays(i);
+            byDay.TryGetValue(day, out var stat);
+            var commits = stat?.Commits ?? 0;
+            var generated = stat?.Generated ?? 0;
+            var errors = stat?.Errors ?? 0;
+            var others = commits - generated - errors;
+
+            var column = new Grid
+            {
+                Margin = new Thickness(days > 30 ? 0.5 : 2, 0, days > 30 ? 0.5 : 2, 0), Background = System.Windows.Media.Brushes.Transparent,
+                ToolTip = $"{day:dd/MM/yyyy (ddd)}\n{commits} commit(s): {generated} gerado(s), {errors} com erro, {others} outro(s)"
+            };
+            var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom };
+            // de cima para baixo: Outros, Erros, Gerados (os gerados ficam na base)
+            foreach (var (count, brush) in new[] { (others, "BorderStrongBrush"), (errors, "DangerBrush"), (generated, "SuccessBrush") })
+            {
+                if (count <= 0) continue;
+                var bar = new System.Windows.Shapes.Rectangle { Height = Math.Max(2, (ChartHeight - 2) * count / max), RadiusX = 1, RadiusY = 1 };
+                bar.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, brush);
+                stack.Children.Add(bar);
+            }
+            if (commits == 0)   // dia sem commit: marca fina na base, para a escala continuar legivel
+            {
+                var tick = new System.Windows.Shapes.Rectangle { Height = 1 };
+                tick.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "BorderStrongBrush");
+                stack.Children.Add(tick);
+            }
+            column.Children.Add(stack);
+            _chart.Children.Add(column);
+        }
+
+        // eixo: primeiro e ultimo dia
+        _chartAxis.ColumnDefinitions.Add(new ColumnDefinition());
+        _chartAxis.ColumnDefinitions.Add(new ColumnDefinition());
+        void Axis(string text, int col, HorizontalAlignment align)
+        {
+            var t = new TextBlock { Text = text, FontSize = 11, HorizontalAlignment = align };
+            t.SetResourceReference(TextBlock.ForegroundProperty, "TextMutedBrush");
+            Grid.SetColumn(t, col);
+            _chartAxis.Children.Add(t);
+        }
+        Axis(s.From.ToString("dd/MM"), 0, HorizontalAlignment.Left);
+        Axis($"{s.From.AddDays(days - 1):dd/MM}   (máx. {max}/dia)", 1, HorizontalAlignment.Right);
+    }
+
     private int SelectedDays => Periods[Math.Max(0, _period.SelectedIndex)].Days;
 
     private void Export()
@@ -187,6 +269,7 @@ public sealed class ResumoWindow : Window
             (s.BuildsMeasured > 0 ? $"  (maior: {SummaryCalculator.Format(s.MaxBuild)}, {s.BuildsMeasured} medidas)" : "") + "\n" +
             $"Do commit até a versão pronta (médio): {SummaryCalculator.Format(s.AvgCommitToReady)}";
 
+        DrawChart(s, days);
         _days.ItemsSource = s.ByDay;
         _authors.ItemsSource = s.ByAuthor;
         _note.Text = "O histórico é guardado por " + MonitorService.HistoryDays + " dias. Tempos só existem para versões " +
