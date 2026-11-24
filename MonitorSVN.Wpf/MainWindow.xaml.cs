@@ -152,6 +152,9 @@ public partial class MainWindow : Window
         new ModelosWindow(this, _settings, _entries).ShowDialog();
     }
 
+    private void BtnSummary_Click(object sender, RoutedEventArgs e) =>
+        new ResumoWindow(this, _entries).ShowDialog();
+
     private void BtnAbout_Click(object sender, RoutedEventArgs e)
     {
         var version = System.Reflection.Assembly.GetExecutingAssembly()
@@ -260,6 +263,7 @@ public partial class MainWindow : Window
     {
         var finished = _service.RefreshStatus(_settings);
         RefreshGrid();
+        NotifyAlerts();
         SaveEntriesSafe();
 
         // um build terminou: commits da mesma versao que estavam esperando por ele ja podem ser disparados
@@ -274,6 +278,26 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) { AppLog.Warn("Pesquisa do responsavel pelo erro falhou.", ex); }
         finally { _resolvingSuspects = false; }
+    }
+
+    /// <summary>Avisa (balão da bandeja + faixa na janela) sobre erros novos e builds demorando. Cada linha avisa uma vez.</summary>
+    private void NotifyAlerts()
+    {
+        var alerts = AlertCollector.Collect(_entries, DateTime.Now);
+        if (alerts.Count == 0) return;
+
+        foreach (var a in alerts) AppLog.Warn("Aviso: " + a.Message);
+        var title = AlertCollector.Title(alerts);
+        var text = AlertCollector.Describe(alerts);
+
+        try
+        {
+            _tray.Visible = true;   // o balão precisa do ícone; ele some de novo se a janela estiver aberta
+            _tray.ShowBalloonTip(15000, title, text, System.Windows.Forms.ToolTipIcon.Warning);
+        }
+        catch (Exception ex) { AppLog.Warn("Nao foi possivel mostrar o aviso na bandeja.", ex); }
+
+        if (IsVisible) ShowWarning(title + Environment.NewLine + text);
     }
 
     private async Task TriggerWaitingAsync()
@@ -480,6 +504,9 @@ public partial class MainWindow : Window
         _tray.Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!);
         _tray.Text = "Monitor SVN";
         _tray.DoubleClick += (_, _) => RestoreFromTray();
+        _tray.BalloonTipClicked += (_, _) => RestoreFromTray();
+        // janela aberta: o ícone só existia para mostrar o balão
+        _tray.BalloonTipClosed += (_, _) => { if (IsVisible) _tray.Visible = false; };
 
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("Abrir Monitor SVN", null, (_, _) => RestoreFromTray());

@@ -165,6 +165,9 @@
             <Button x:Name="btnModels" DockPanel.Dock="Right" Content="Modelos" Height="36" Padding="18,0"
                     Margin="0,0,10,0" VerticalAlignment="Center" Click="BtnModels_Click"
                     ToolTip="Incluir libs nos modelos (pasta e Jenkins)"/>
+            <Button x:Name="btnSummary" DockPanel.Dock="Right" Content="Resumo" Height="36" Padding="18,0"
+                    Margin="0,0,10,0" VerticalAlignment="Center" Click="BtnSummary_Click"
+                    ToolTip="Totais, taxa de erro e tempos médios do histórico"/>
             <Button x:Name="btnAbout" DockPanel.Dock="Right" Content="Sobre" Height="36" Padding="18,0"
                     Margin="0,0,10,0" VerticalAlignment="Center" Click="BtnAbout_Click"/>
             <Button x:Name="btnRun" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Height="36"

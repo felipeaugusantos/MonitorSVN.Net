@@ -28,6 +28,10 @@ public sealed class LogEntry : INotifyPropertyChanged
     public string Version { get; set; } = "";
     public DateTime Timestamp { get; set; }
 
+    /// <summary>O aviso de erro / de build demorado desta linha já foi dado (não repete ao reabrir o app).</summary>
+    public bool AlertedError { get; set; }
+    public bool AlertedSlow { get; set; }
+
     /// <summary>Quando o build foi disparado no Jenkins. Nulo se ainda não foi disparado.</summary>
     public DateTime? StartedAt { get; set; }
 

@@ -6,6 +6,9 @@ namespace MonitorSVN.Services;
 /// <summary>Um ciclo completo: le o SVN, atualiza o historico, dispara os builds pendentes e acompanha o resultado.</summary>
 public sealed class MonitorService
 {
+    /// <summary>Por quantos dias o historico fica guardado (alimenta a tela Resumo).</summary>
+    public const int HistoryDays = 90;
+
     public const string DoneFile = "concluido.txt";
     public const string ErrorFile = "erro.txt";
 
@@ -45,7 +48,7 @@ public sealed class MonitorService
         var today = DateOnly.FromDateTime(startedAt);
         var since = ScanStart(settings.LastScan, today);
 
-        foreach (var old in _entries.Where(e => e.Timestamp.Date < DateTime.Today.AddDays(-7)).ToList())
+        foreach (var old in _entries.Where(e => e.Timestamp.Date < DateTime.Today.AddDays(-HistoryDays)).ToList())
             _entries.Remove(old);
 
         var svn = new SvnClient(settings.SvnExecutable);
@@ -191,6 +194,7 @@ public sealed class MonitorService
 
             entry.ErrorDetail = null;
             entry.StartedAt = DateTime.Now;
+            entry.AlertedError = entry.AlertedSlow = false;   // novo disparo: novos avisos valem
             entry.Suspect = null;
             entry.FinishedAt = null;   // reprocessado: o término anterior deixa de valer
             entry.Status = BuildStatus.InProgress;
