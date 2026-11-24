@@ -26,7 +26,7 @@ public partial class MainWindow : Window
     private readonly System.Windows.Forms.NotifyIcon _tray = new();
 
     // abaixo desta altura o painel esquerdo passa a rolar; acima, a lista de diretorios absorve o espaco
-    private const double LeftContentMinHeight = 730;
+    private const double LeftContentMinHeight = 710;
 
     private DateTime? _lastRun;
     private bool _running;
@@ -93,6 +93,7 @@ public partial class MainWindow : Window
         txtJenkinsUrl.Text = _settings.JenkinsUrl;
         txtBuildUrl.Text = _settings.BuildUrlTemplate;
         txtRoot.Text = _settings.GenerationRoot;
+        txtSlowMinutes.Text = _settings.SlowAfterMinutes.ToString();
         txtUser.Text = _settings.JenkinsUser;
         chkRemember.IsChecked = _settings.RememberCredentials;
         pwdPassword.Password = _settings.RememberCredentials ? _settings.Password : "";
@@ -104,6 +105,8 @@ public partial class MainWindow : Window
         _settings.JenkinsUrl = txtJenkinsUrl.Text.Trim();
         _settings.BuildUrlTemplate = txtBuildUrl.Text.Trim();
         _settings.GenerationRoot = txtRoot.Text.Trim();
+        _settings.SlowAfterMinutes = AlertCollector.ParseMinutes(txtSlowMinutes.Text, _settings.SlowAfterMinutes);
+        txtSlowMinutes.Text = _settings.SlowAfterMinutes.ToString();   // valor invalido volta ao anterior
         _settings.JenkinsUser = txtUser.Text.Trim();
         _settings.RememberCredentials = chkRemember.IsChecked == true;
         _settings.Password = pwdPassword.Password;
@@ -283,7 +286,7 @@ public partial class MainWindow : Window
     /// <summary>Avisa (balão da bandeja + faixa na janela) sobre erros novos e builds demorando. Cada linha avisa uma vez.</summary>
     private void NotifyAlerts()
     {
-        var alerts = AlertCollector.Collect(_entries, DateTime.Now);
+        var alerts = AlertCollector.Collect(_entries, DateTime.Now, TimeSpan.FromMinutes(_settings.SlowAfterMinutes));
         if (alerts.Count == 0) return;
 
         foreach (var a in alerts) AppLog.Warn("Aviso: " + a.Message);

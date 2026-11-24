@@ -9,15 +9,23 @@ public sealed record BuildAlert(AlertKind Kind, LogEntry Entry, string Message);
 /// <summary>Decide quais versoes merecem aviso (erro novo, build demorando) e marca cada uma para avisar uma vez so.</summary>
 public static class AlertCollector
 {
-    /// <summary>Build em andamento ha mais que isso gera um aviso.</summary>
+    public const int MinMinutes = 5;
+    public const int MaxMinutes = 1440;
+
+    /// <summary>Build em andamento ha mais que isso gera um aviso (padrao; o limite real vem das configuracoes).</summary>
     public static readonly TimeSpan SlowAfter = TimeSpan.FromMinutes(60);
+
+    /// <summary>Le o campo da tela: so aceita inteiro entre 5 minutos e 24 h; senao mantem o valor anterior.</summary>
+    public static int ParseMinutes(string? text, int fallback) =>
+        int.TryParse(text?.Trim(), out var m) && m is >= MinMinutes and <= MaxMinutes ? m : fallback;
 
     /// <summary>Erros mais antigos que isso nao avisam (evita uma enxurrada de avisos ao abrir o app depois de um tempo).</summary>
     public static readonly TimeSpan ErrorWindow = TimeSpan.FromHours(6);
 
     /// <summary>Devolve os avisos novos e marca as linhas (Alerted*), que sao gravadas junto do historico.</summary>
-    public static List<BuildAlert> Collect(IEnumerable<LogEntry> entries, DateTime now)
+    public static List<BuildAlert> Collect(IEnumerable<LogEntry> entries, DateTime now, TimeSpan? slowAfter = null)
     {
+        var limit = slowAfter ?? SlowAfter;
         var alerts = new List<BuildAlert>();
         foreach (var e in entries.Where(e => !e.Dismissed).OrderBy(e => e.Timestamp))
         {
@@ -28,7 +36,7 @@ public static class AlertCollector
                     alerts.Add(new BuildAlert(AlertKind.Error, e, $"{e.Version} terminou com erro (Rev {e.Revision}, {e.Author})."));
                 e.AlertedError = true;
             }
-            else if (e.Status == BuildStatus.InProgress && !e.AlertedSlow && e.StartedAt is { } started && now - started >= SlowAfter)
+            else if (e.Status == BuildStatus.InProgress && !e.AlertedSlow && e.StartedAt is { } started && now - started >= limit)
             {
                 var minutes = (int)(now - started).TotalMinutes;
                 alerts.Add(new BuildAlert(AlertKind.Slow, e,

@@ -32,6 +32,9 @@ public sealed class AppSettings
     /// <summary>"Light", "Dark" ou vazio (segue o tema do Windows).</summary>
     public string Theme { get; set; } = "";
 
+    /// <summary>Minutos de build "Em andamento" a partir dos quais o app avisa que esta demorando.</summary>
+    public int SlowAfterMinutes { get; set; } = 60;
+
     /// <summary>Inicio da ultima varredura em que todos os diretorios foram lidos. A proxima consulta o SVN a partir desse dia.</summary>
     public DateTime? LastScan { get; set; }
 

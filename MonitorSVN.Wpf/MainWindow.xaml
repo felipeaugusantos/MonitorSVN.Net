@@ -193,7 +193,7 @@
                 <Grid>
                   <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*" MinHeight="110"/>
+                    <RowDefinition Height="*" MinHeight="74"/>
                     <RowDefinition Height="Auto"/>
                   </Grid.RowDefinitions>
                   <StackPanel>
@@ -244,6 +244,12 @@
                     <TextBlock Text="GERAÇÃO" Style="{StaticResource SectionTitle}"/>
                     <TextBlock Text="Pasta raiz de geração" Style="{StaticResource Label}" Margin="0,10,0,4"/>
                     <TextBox x:Name="txtRoot"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <TextBlock Text="Avisar se um build passar de" Style="{StaticResource Label}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <TextBox x:Name="txtSlowMinutes" Width="60" MaxLength="4" HorizontalContentAlignment="Center"
+                                 ToolTip="Minutos (de 5 a 1440). Passado esse tempo em andamento, o app avisa uma vez."/>
+                        <TextBlock Text="min" Style="{StaticResource Label}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
                     <TextBlock Text="Ignorar commits de" Style="{StaticResource Label}"/>
 
                     <Grid>

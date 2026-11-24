@@ -73,4 +73,27 @@ public class AlertCollectorTests
         Assert.Equal(4, text.Split(Environment.NewLine).Length);
         Assert.Equal("Monitor SVN: versão com erro", AlertCollector.Title(alerts.Take(1).ToList()));
     }
+
+    [Fact]
+    public void Slow_limit_can_be_changed()
+    {
+        var e = E(BuildStatus.InProgress, started: Now.AddMinutes(-20));
+
+        Assert.Empty(AlertCollector.Collect(new[] { e }, Now));                                    // padrao: 60 min
+        var alert = Assert.Single(AlertCollector.Collect(new[] { e }, Now, TimeSpan.FromMinutes(15)));
+        Assert.Equal(AlertKind.Slow, alert.Kind);
+    }
+
+    [Theory]
+    [InlineData("30", 60, 30)]
+    [InlineData(" 90 ", 60, 90)]
+    [InlineData("5", 60, 5)]
+    [InlineData("1440", 60, 1440)]
+    [InlineData("4", 60, 60)]        // abaixo do minimo
+    [InlineData("1441", 45, 45)]     // acima do maximo
+    [InlineData("abc", 45, 45)]
+    [InlineData("", 45, 45)]
+    [InlineData(null, 45, 45)]
+    public void Minutes_field_is_validated(string? text, int fallback, int expected) =>
+        Assert.Equal(expected, AlertCollector.ParseMinutes(text, fallback));
 }
