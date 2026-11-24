@@ -149,7 +149,7 @@ public partial class MainWindow : Window
     private void BtnModels_Click(object sender, RoutedEventArgs e)
     {
         CollectSettings();
-        new ModelosWindow(this, _settings).ShowDialog();
+        new ModelosWindow(this, _settings, _entries).ShowDialog();
     }
 
     private void BtnAbout_Click(object sender, RoutedEventArgs e)

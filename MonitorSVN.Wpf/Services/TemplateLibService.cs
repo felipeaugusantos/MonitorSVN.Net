@@ -54,6 +54,28 @@ public static class TemplateLibService
         return found.Length == 1 ? found[0] : null;
     }
 
+    /// <summary>
+    /// Versoes do dia que ja tem pasta de geracao e job proprios: candidatas a receber a lib. Fica de fora (em Skipped,
+    /// com o motivo) a versao com build em andamento. Versoes ainda sem pasta nascem do modelo, que ja tera a lib.
+    /// </summary>
+    public static (List<string> Versions, List<string> Skipped) DayVersions(
+        IEnumerable<LogEntry> entries, AppSettings settings, DateTime today)
+    {
+        var versions = new List<string>();
+        var skipped = new List<string>();
+        var groups = entries.Where(e => !e.Dismissed && e.Timestamp.Date == today.Date)
+            .GroupBy(e => e.Version).OrderBy(g => g.Key, StringComparer.Ordinal);
+        foreach (var g in groups)
+        {
+            if (!JobPreparer.FolderReady(Path.Combine(settings.GenerationRoot, g.Key))) continue;
+            if (g.Any(e => e.Status == BuildStatus.InProgress))
+                skipped.Add($"[{g.Key}] ignorada: build em andamento. Inclua a lib depois que terminar.");
+            else
+                versions.Add(g.Key);
+        }
+        return (versions, skipped);
+    }
+
     /// <summary>Libs que o modelo ja conhece, lidas do _FechamentoArquivos.bat.</summary>
     public static List<string> ListLibs(AppSettings settings, string template)
     {

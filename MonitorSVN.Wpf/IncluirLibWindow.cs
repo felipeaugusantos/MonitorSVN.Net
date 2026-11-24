@@ -37,9 +37,22 @@ public sealed class IncluirLibWindow : Window
         "Outro  (informar as pastas)"
     };
 
-    public IncluirLibWindow(Window owner, AppSettings settings, List<string> templates, string? preselected)
+    private readonly CheckBox _days = new() { Margin = new Thickness(0, 6, 0, 0) };
+    private readonly List<string> _dayVersions;
+    private readonly List<string> _daySkipped;
+
+    public IncluirLibWindow(Window owner, AppSettings settings, List<string> templates, string? preselected,
+        IEnumerable<LogEntry> entries)
     {
         _settings = settings;
+        (_dayVersions, _daySkipped) = TemplateLibService.DayVersions(entries, settings, DateTime.Now);
+        _days.Content = new TextBlock
+        {
+            Text = $"Aplicar também nas versões de hoje já criadas ({_dayVersions.Count})",
+            ToolTip = _dayVersions.Count == 0 ? "Nenhuma versão de hoje com pasta e job próprios."
+                                              : string.Join(Environment.NewLine, _dayVersions)
+        };
+        _days.IsEnabled = _dayVersions.Count > 0;
         Owner = owner;
         Title = "Incluir lib nos modelos";
         Width = 640;
@@ -83,6 +96,8 @@ public sealed class IncluirLibWindow : Window
             boxes.Children.Add(cb);
         }
         panel.Children.Add(boxes);
+        _days.Click += (_, _) => Invalidate();
+        panel.Children.Add(_days);
         _jenkins.Click += (_, _) => Invalidate();
         panel.Children.Add(_jenkins);
 
@@ -149,14 +164,21 @@ public sealed class IncluirLibWindow : Window
         LibTemplateEditor.ValidateName(spec.Name);
 
         var chosen = ChosenTemplates();
-        if (chosen.Count == 0) throw new LibEditException("Marque pelo menos um modelo.");
+        var versions = _days.IsChecked == true ? _dayVersions : new List<string>();
+        if (chosen.Count == 0 && versions.Count == 0)
+            throw new LibEditException("Marque pelo menos um modelo (ou as versões de hoje).");
 
         using var jenkins = NewJenkins();
         var plans = new List<TemplatePlan>();
-        foreach (var t in chosen)
+        foreach (var t in chosen.Concat(versions))
             plans.Add(await TemplateLibService.PlanAsync(t, spec, _settings, jenkins, CancellationToken.None));
         return plans;
     }
+
+    private string DaySkippedText() =>
+        _days.IsChecked == true && _daySkipped.Count > 0
+            ? Environment.NewLine + Environment.NewLine + string.Join(Environment.NewLine, _daySkipped)
+            : "";
 
     private async Task PreviewAsync()
     {
@@ -164,7 +186,7 @@ public sealed class IncluirLibWindow : Window
         try
         {
             var plans = await BuildPlansAsync();
-            _preview.Text = string.Join(Environment.NewLine + Environment.NewLine, plans.Select(p => p.Summary));
+            _preview.Text = string.Join(Environment.NewLine + Environment.NewLine, plans.Select(p => p.Summary)) + DaySkippedText();
             _apply.IsEnabled = plans.Any(p => p.Ok);
         }
         catch (LibEditException ex)
@@ -203,8 +225,8 @@ public sealed class IncluirLibWindow : Window
             }
 
             var skipped = plans.Count - ok.Count;
-            var question = $"Gravar a lib {Spec().Name} em {ok.Count} modelo(s)?" +
-                           (skipped > 0 ? $"\n{skipped} modelo(s) serão ignorados (veja o resumo)." : "") +
+            var question = $"Gravar a lib {Spec().Name} em {ok.Count} pasta(s)/job(s) (modelos e versões)?" +
+                           (skipped > 0 ? $"\n{skipped} serão ignorados (veja o resumo)." : "") +
                            "\nOs arquivos originais serão copiados para a pasta de backups.";
             if (!MessageDialog.Confirm(this, "Confirmar alteração", question)) return;
 
@@ -214,7 +236,7 @@ public sealed class IncluirLibWindow : Window
             using var jenkins = NewJenkins();
             var backup = await TemplateLibService.ApplyAsync(plans, Spec().Name, jenkins, backupRoot, CancellationToken.None);
 
-            MessageDialog.Info(this, "Pronto", $"Lib {Spec().Name} incluída em {ok.Count} modelo(s).\n\nCópia dos originais:\n{backup}");
+            MessageDialog.Info(this, "Pronto", $"Lib {Spec().Name} incluída em {ok.Count} pasta(s)/job(s).\n\nCópia dos originais:\n{backup}");
             DialogResult = true;
         }
         catch (LibEditException ex)

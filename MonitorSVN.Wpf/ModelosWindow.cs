@@ -15,9 +15,12 @@ public sealed class ModelosWindow : Window
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private List<string> _libs = new();
 
-    public ModelosWindow(Window owner, AppSettings settings)
+    private readonly IEnumerable<LogEntry> _entries;
+
+    public ModelosWindow(Window owner, AppSettings settings, IEnumerable<LogEntry> entries)
     {
         _settings = settings;
+        _entries = entries;
         Owner = owner;
         Title = "Modelos";
         Width = 560;
@@ -94,7 +97,7 @@ public sealed class ModelosWindow : Window
 
     private void OpenAddDialog()
     {
-        var dialog = new IncluirLibWindow(this, _settings, _templates.Items.Cast<string>().ToList(), Selected);
+        var dialog = new IncluirLibWindow(this, _settings, _templates.Items.Cast<string>().ToList(), Selected, _entries);
         if (dialog.ShowDialog() == true) LoadLibs();
     }
 }
