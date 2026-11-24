@@ -14,9 +14,9 @@ public sealed class JenkinsClient : IDisposable
 {
     private readonly HttpClient _http;
 
-    public JenkinsClient(string baseUrl, string user, string password)
+    public JenkinsClient(string baseUrl, string user, string password, HttpMessageHandler? handler = null)
     {
-        _http = new HttpClient
+        _http = new HttpClient(handler ?? new HttpClientHandler())
         {
             BaseAddress = new Uri(baseUrl.Trim().TrimEnd('/') + "/"),
             Timeout = TimeSpan.FromSeconds(30)
@@ -89,6 +89,57 @@ public sealed class JenkinsClient : IDisposable
     public async Task TriggerBuildAsync(string urlTemplate, string version, CancellationToken ct)
     {
         var url = urlTemplate.Replace("%token%", Uri.EscapeDataString(version));
+        using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent("") };
+        await AddCrumbAsync(request, ct);
+        using var response = await _http.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>
+    /// Aborta o que o job da versao esta fazendo: tira o item da fila e manda parar os builds em execucao.
+    /// Retorna true se havia algo para abortar (false tambem quando o job nao existe).
+    /// </summary>
+    public async Task<bool> AbortBuildAsync(string name, CancellationToken ct)
+    {
+        var job = $"job/{Uri.EscapeDataString(name)}";
+        var aborted = false;
+
+        using (var response = await _http.GetAsync($"{job}/api/json?tree=inQueue,queueItem[id]", ct))
+        {
+            if (response.StatusCode == HttpStatusCode.NotFound) return false;
+            response.EnsureSuccessStatusCode();
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+            var root = doc.RootElement;
+            if (root.TryGetProperty("inQueue", out var inQueue) && inQueue.ValueKind == JsonValueKind.True &&
+                root.TryGetProperty("queueItem", out var item) && item.ValueKind == JsonValueKind.Object &&
+                item.TryGetProperty("id", out var id))
+            {
+                await PostAsync($"queue/cancelItem?id={id.GetInt64()}", ct);
+                aborted = true;
+            }
+        }
+
+        var running = new List<int>();
+        using (var response = await _http.GetAsync($"{job}/api/json?tree=builds[number,building]{{0,10}}", ct))
+        {
+            response.EnsureSuccessStatusCode();
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+            if (doc.RootElement.TryGetProperty("builds", out var builds))
+                foreach (var b in builds.EnumerateArray())
+                    if (b.TryGetProperty("building", out var on) && on.ValueKind == JsonValueKind.True)
+                        running.Add(b.GetProperty("number").GetInt32());
+        }
+
+        foreach (var number in running)
+        {
+            await PostAsync($"{job}/{number}/stop", ct);
+            aborted = true;
+        }
+        return aborted;
+    }
+
+    private async Task PostAsync(string url, CancellationToken ct)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent("") };
         await AddCrumbAsync(request, ct);
         using var response = await _http.SendAsync(request, ct);

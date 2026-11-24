@@ -12,15 +12,15 @@ public sealed class MonitorService
     public const string DoneFile = "concluido.txt";
     public const string ErrorFile = "erro.txt";
 
-    /// <summary>
-    /// Um build "Em andamento" ha mais tempo que isso deixa de segurar os commits novos da mesma versao
-    /// (provavelmente se perdeu no Jenkins e nunca vai gravar concluido.txt/erro.txt).
-    /// </summary>
-    public static readonly TimeSpan StuckAfter = TimeSpan.FromHours(6);
-
     private readonly ObservableCollection<LogEntry> _entries;
 
+    private readonly Func<AppSettings, JenkinsClient>? _jenkinsFactory;
+
+    /// <param name="jenkinsFactory">Usado nos testes: devolve um JenkinsClient com Jenkins de mentira.</param>
     public MonitorService(ObservableCollection<LogEntry> entries) => _entries = entries;
+
+    public MonitorService(ObservableCollection<LogEntry> entries, Func<JenkinsClient> jenkinsFactory) : this(entries) =>
+        _jenkinsFactory = _ => jenkinsFactory();
 
     /// <summary>
     /// Primeiro dia a consultar no SVN: o dia da ultima varredura completa, limitado a ontem.
@@ -105,17 +105,13 @@ public sealed class MonitorService
     }
 
     /// <summary>
-    /// Outro build da mesma versao ainda em andamento (e nao travado). Enquanto ele nao terminar, um novo
-    /// disparo nao pode acontecer: os dois usam a mesma pasta, e o concluido.txt/erro.txt do build antigo
-    /// seria atribuido ao novo.
+    /// Builds da mesma versao ainda "Em andamento" (fora a propria linha). Um disparo novo aborta todos eles: os
+    /// dois usariam a mesma pasta, e o concluido.txt/erro.txt do antigo seria atribuido ao novo.
     /// </summary>
-    public static LogEntry? BlockingBuild(IEnumerable<LogEntry> entries, LogEntry entry, DateTime now) =>
-        entries.FirstOrDefault(e => !ReferenceEquals(e, entry) &&
-                                    e.Version == entry.Version &&
-                                    e.Status == BuildStatus.InProgress &&
-                                    (e.StartedAt is not { } started || now - started < StuckAfter));
+    public static List<LogEntry> RunningBuilds(IEnumerable<LogEntry> entries, LogEntry entry) =>
+        entries.Where(e => !ReferenceEquals(e, entry) && e.Version == entry.Version && e.Status == BuildStatus.InProgress).ToList();
 
-    /// <summary>Dispara os pendentes recentes que nao estao esperando outro build da mesma versao.</summary>
+    /// <summary>Dispara os pendentes recentes. Se a versao ja tem build em andamento, ele e abortado e o mais novo comeca.</summary>
     public async Task<List<string>> TriggerPendingAsync(AppSettings settings, IProgress<string>? progress, CancellationToken ct)
     {
         var messages = new List<string>();
@@ -129,11 +125,6 @@ public sealed class MonitorService
 
         foreach (var entry in pending)
         {
-            if (BlockingBuild(_entries, entry, DateTime.Now) is { } running)
-            {
-                AppLog.Info($"r{entry.Revision} ({entry.Version}) aguardando o build da r{running.Revision} terminar.");
-                continue;
-            }
             progress?.Report($"Disparando {entry.Version}");
             await TriggerAsync(entry, settings, jenkins, messages, ct);
         }
@@ -144,23 +135,17 @@ public sealed class MonitorService
     public async Task<List<string>> ReprocessAsync(LogEntry entry, AppSettings settings, CancellationToken ct)
     {
         var messages = new List<string>();
-        if (BlockingBuild(_entries, entry, DateTime.Now) is { } running)
-        {
-            messages.Add($"A r{running.Revision} da versao {entry.Version} ainda esta em andamento. " +
-                         "Aguarde ela terminar para reprocessar.");
-            return messages;
-        }
-
         using var jenkins = CreateJenkins(settings, messages);
         if (jenkins is null) return messages;
         await TriggerAsync(entry, settings, jenkins, messages, ct);
         return messages;
     }
 
-    private static JenkinsClient? CreateJenkins(AppSettings settings, List<string> messages)
+    private JenkinsClient? CreateJenkins(AppSettings settings, List<string> messages)
     {
         try
         {
+            if (_jenkinsFactory is not null) return _jenkinsFactory(settings);
             return new JenkinsClient(settings.JenkinsUrl, settings.JenkinsUser, settings.Password);
         }
         catch (Exception ex) when (ex is UriFormatException or ArgumentException)
@@ -177,20 +162,24 @@ public sealed class MonitorService
         try
         {
             await JobPreparer.EnsureAsync(entry.Version, settings, jenkins, ct);
+
+            // build antigo da mesma versao ainda rodando (ou na fila): aborta e segue com o novo
+            var running = RunningBuilds(_entries, entry);
+            if (running.Count > 0)
+            {
+                await jenkins.AbortBuildAsync(entry.Version, ct);
+                foreach (var old in running)
+                {
+                    old.ErrorDetail = $"Abortado: substituído pelo commit r{entry.Revision}.";
+                    old.FinishedAt = DateTime.Now;
+                    old.Suspect = "";
+                    old.Status = BuildStatus.Ignored;
+                    AppLog.Info($"Build da r{old.Revision} ({old.Version}) abortado: substituido pela r{entry.Revision}.");
+                }
+            }
+
             ClearResultFiles(settings, entry.Version);
             await jenkins.TriggerBuildAsync(settings.BuildUrlTemplate, entry.Version, ct);
-
-            // builds travados da mesma versao (mais de StuckAfter sem resultado) deixam de ser acompanhados:
-            // o proximo concluido.txt/erro.txt da pasta pertence a este disparo
-            foreach (var stuck in _entries.Where(e => !ReferenceEquals(e, entry) && e.Version == entry.Version &&
-                                                      e.Status == BuildStatus.InProgress).ToList())
-            {
-                stuck.ErrorDetail = $"Sem resultado do Jenkins; substituído pelo build da r{entry.Revision}.";
-                stuck.FinishedAt = DateTime.Now;
-                stuck.Suspect = "";
-                stuck.Status = BuildStatus.Error;
-                AppLog.Warn($"r{stuck.Revision} ({stuck.Version}) sem resultado; substituido pelo build da r{entry.Revision}.");
-            }
 
             entry.ErrorDetail = null;
             entry.StartedAt = DateTime.Now;

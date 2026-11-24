@@ -9,7 +9,7 @@ public sealed record BuildAlert(AlertKind Kind, LogEntry Entry, string Message);
 /// <summary>Decide quais versoes merecem aviso (erro novo, build demorando) e marca cada uma para avisar uma vez so.</summary>
 public static class AlertCollector
 {
-    /// <summary>Build em andamento ha mais que isso gera um aviso (o app so para de acompanhar apos StuckAfter).</summary>
+    /// <summary>Build em andamento ha mais que isso gera um aviso.</summary>
     public static readonly TimeSpan SlowAfter = TimeSpan.FromMinutes(60);
 
     /// <summary>Erros mais antigos que isso nao avisam (evita uma enxurrada de avisos ao abrir o app depois de um tempo).</summary>

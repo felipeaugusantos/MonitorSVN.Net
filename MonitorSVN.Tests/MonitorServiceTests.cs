@@ -72,23 +72,19 @@ public class MonitorServiceTests : IDisposable
     }
 
     [Fact]
-    public void A_new_commit_waits_while_another_build_of_the_same_version_is_running()
+    public void RunningBuilds_lists_only_other_in_progress_entries_of_the_same_version()
     {
         var now = DateTime.Now;
         var running = Entry("30", now.AddHours(-1), BuildStatus.InProgress, startedAt: now.AddMinutes(-30));
+        var done = Entry("29", now.AddHours(-2), BuildStatus.Generated);
+        var otherVersion = Entry("28", now.AddHours(-1), BuildStatus.InProgress, startedAt: now.AddMinutes(-5));
+        otherVersion.Version = "outra.versao";
         var waiting = Entry("31", now, BuildStatus.Pending);
 
-        Assert.Same(running, MonitorService.BlockingBuild(new[] { running, waiting }, waiting, now));
-    }
+        var result = MonitorService.RunningBuilds(new[] { running, done, otherVersion, waiting }, waiting);
 
-    [Fact]
-    public void A_stuck_build_stops_blocking_after_the_limit()
-    {
-        var now = DateTime.Now;
-        var stuck = Entry("40", now.AddDays(-1), BuildStatus.InProgress, startedAt: now - MonitorService.StuckAfter - TimeSpan.FromMinutes(1));
-        var waiting = Entry("41", now, BuildStatus.Pending);
-
-        Assert.Null(MonitorService.BlockingBuild(new[] { stuck, waiting }, waiting, now));
+        Assert.Same(running, Assert.Single(result));
+        Assert.Empty(MonitorService.RunningBuilds(new[] { running }, running));   // nunca a propria linha
     }
 
     // ------------------------------------------------------------------ concluido.txt / erro.txt
