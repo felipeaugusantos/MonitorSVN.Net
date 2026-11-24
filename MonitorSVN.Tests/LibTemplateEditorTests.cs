@@ -201,4 +201,76 @@ public class LibTemplateEditorTests
         Assert.Throws<LibEditException>(() =>
             LibTemplateEditor.AddToJobConfig("<project><command>echo oi</command></project>", LibSpec.Cartoes("libCartoesNovo")));
     }
+
+    // ------------------------------------------------------------------ remocao
+
+    [Fact]
+    public void Removing_what_was_added_restores_the_original_files_exactly()
+    {
+        Assert.Equal(Bat, LibTemplateEditor.RemoveFromBat(LibTemplateEditor.AddToBat(Bat, "libCartoesNovo"), "libCartoesNovo"));
+
+        Assert.Equal(Bkp, LibTemplateEditor.RemoveFromBkp(
+            LibTemplateEditor.AddToBkp(Bkp, LibSpec.Cartoes("libCartoesNovo")), "libCartoesNovo"));
+        Assert.Equal(Sectioned, LibTemplateEditor.RemoveFromBkp(
+            LibTemplateEditor.AddToBkp(Sectioned, LibSpec.Cartoes("libCartoesNovo")), "libCartoesNovo"));
+        Assert.Equal(Sectioned, LibTemplateEditor.RemoveFromBkp(
+            LibTemplateEditor.AddToBkp(Sectioned, LibSpec.Boletos("libBoletosNovo")), "libBoletosNovo"));
+        var outra = new LibSpec("libOutraCoisa", @"%WORKSPACE%\x\", @"%WORKSPACE%\x\");
+        Assert.Equal(Sectioned, LibTemplateEditor.RemoveFromBkp(LibTemplateEditor.AddToBkp(Sectioned, outra), "libOutraCoisa"));
+    }
+
+    [Fact]
+    public void Removing_an_existing_lib_leaves_the_others_untouched()
+    {
+        var bat = LibTemplateEditor.RemoveFromBat(Bat, "libBoletosItau");
+        Assert.DoesNotContain("libBoletosItau", bat);
+        Assert.DoesNotContain("ExeclibBoletosItau", bat);
+        Assert.Contains("SET ExeclibCartoesSipag=0\r\n", bat);
+        Assert.Contains(@"comandosCMD\libCartoesSipag.cmd", bat);
+        Assert.Contains("SET ExecAdvance=0", bat);
+        Assert.Contains("echo Tempo decorrido", bat);
+
+        var bkp = LibTemplateEditor.RemoveFromBkp(Sectioned, "libCartoesB");
+        Assert.DoesNotContain("libCartoesB", bkp);
+        Assert.Contains("libCartoesA", bkp);
+        Assert.Contains("libBoletosA", bkp);
+        Assert.Contains("echo concluido", bkp);
+    }
+
+    [Fact]
+    public void Removal_of_a_lib_that_is_not_there_is_rejected()
+    {
+        Assert.Throws<LibEditException>(() => LibTemplateEditor.RemoveFromBat(Bat, "libCartoesNovo"));
+        Assert.Throws<LibEditException>(() => LibTemplateEditor.RemoveFromBkp(Bkp, "libCartoesNovo"));
+        Assert.Throws<LibEditException>(() => LibTemplateEditor.RemoveFromBat(Bat, "lib;rm"));
+    }
+
+    [Fact]
+    public void Removal_refuses_blocks_outside_the_known_format_instead_of_guessing()
+    {
+        // bloco do bat sem o .cmd da lib
+        var bat = Bat.Replace(@"comandosCMD\libBoletosItau.cmd", @"outraPasta\x.cmd");
+        Assert.Throws<LibEditException>(() => LibTemplateEditor.RemoveFromBat(bat, "libBoletosItau"));
+
+        // bkp: CALL sem as 3 linhas seguintes esperadas
+        var bkp = "CALL C:\\Compilador\\ddcc32NovoDX10.cmd libX a b\r\necho outra coisa\r\nfoo\r\nbar\r\necho concluido\r\n";
+        Assert.Throws<LibEditException>(() => LibTemplateEditor.RemoveFromBkp(bkp, "libX"));
+    }
+
+    [Fact]
+    public void Jenkins_config_removal_undoes_the_addition()
+    {
+        var command = "echo a > b & type x <y>\r\nCALL C:\\Compilador\\ddcc32NovoDX10.cmd libCartoesSipag s o\r\nIF NOT %ERRORLEVEL% == 0 GOTO END\r\n" +
+                      "C:\\Compilador\\madExceptPatch.exe olibCartoesSipag.dll\r\ncopy /Y olibCartoesSipag.dll C:\\x\r\n\r\necho concluido > C:\\x\\concluido.txt\r\n:END\r\n";
+        string Xml(string c) => "<?xml version='1.1' encoding='UTF-8'?>\n<project><builders><command>" +
+            c.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\r", "&#xd;") + "</command></builders></project>";
+        var config = Xml(command);
+
+        var added = LibTemplateEditor.AddToJobConfig(config, LibSpec.Cartoes("libCartoesNovo"));
+        Assert.True(LibTemplateEditor.JobConfigHas(added, "libCartoesNovo"));
+
+        var restored = LibTemplateEditor.RemoveFromJobConfig(added, "libCartoesNovo");
+        Assert.Equal(config, restored);
+        Assert.False(LibTemplateEditor.JobConfigHas(restored, "libCartoesNovo"));
+    }
 }

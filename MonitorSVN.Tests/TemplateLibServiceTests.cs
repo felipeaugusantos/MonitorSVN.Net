@@ -58,6 +58,41 @@ public class TemplateLibServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Add_then_remove_restores_the_template_and_backs_up_the_deleted_cmd()
+    {
+        var settings = MakeTemplate("_74_Modelo");
+        var lib = LibSpec.Cartoes("libCartoesNovo");
+        var folder = Path.Combine(_root, "_74_Modelo");
+        var add = await TemplateLibService.PlanAsync("_74_Modelo", lib, settings, null, CancellationToken.None);
+        await TemplateLibService.ApplyAsync(new[] { add }, lib.Name, null, Path.Combine(_root, "bkp"), CancellationToken.None);
+
+        var plan = await TemplateLibService.PlanRemoveAsync("_74_Modelo", lib.Name, settings, null, CancellationToken.None);
+        Assert.True(plan.Ok, plan.Error);
+        Assert.Contains("libCartoesNovo.cmd", plan.Summary);
+        Assert.True(File.Exists(Path.Combine(folder, "comandosCMD", "libCartoesNovo.cmd")));   // planejar nao apaga nada
+
+        var backup = await TemplateLibService.ApplyAsync(new[] { plan }, lib.Name, null, Path.Combine(_root, "bkp"), CancellationToken.None);
+
+        Assert.Equal(Bat, File.ReadAllText(Path.Combine(folder, "_FechamentoArquivos.bat"), _enc));
+        Assert.Equal(Bkp, File.ReadAllText(Path.Combine(folder, "_ComandosBKP.txt"), _enc));
+        Assert.False(File.Exists(Path.Combine(folder, "comandosCMD", "libCartoesNovo.cmd")));
+        Assert.True(File.Exists(Path.Combine(folder, "comandosCMD", "libCartoesSipag.cmd")));   // as outras ficam
+        Assert.True(File.Exists(Path.Combine(backup, "_74_Modelo", "libCartoesNovo.cmd")));
+        Assert.EndsWith("-remover-libCartoesNovo", backup);
+    }
+
+    [Fact]
+    public async Task Removing_a_lib_the_template_does_not_have_is_reported()
+    {
+        var settings = MakeTemplate("_74_Modelo");
+
+        var plan = await TemplateLibService.PlanRemoveAsync("_74_Modelo", "libCartoesNovo", settings, null, CancellationToken.None);
+
+        Assert.True(plan.NotFound);
+        Assert.False(plan.Ok);
+    }
+
+    [Fact]
     public async Task Existing_lib_is_reported_and_nothing_is_planned()
     {
         var settings = MakeTemplate("_74_Modelo");

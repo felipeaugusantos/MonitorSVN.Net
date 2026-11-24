@@ -40,8 +40,12 @@ public sealed class ModelosWindow : Window
         var add = new Button { Content = "Incluir lib…", Padding = new Thickness(16, 0, 16, 0), Height = 34, Margin = new Thickness(0, 0, 8, 0) };
         add.SetResourceReference(StyleProperty, "PrimaryButton");
         add.Click += (_, _) => OpenAddDialog();
+        var remove = new Button { Content = "Remover lib…", Padding = new Thickness(16, 0, 16, 0), Height = 34, Margin = new Thickness(0, 0, 8, 0),
+                                  ToolTip = "Tira a lib selecionada na lista dos modelos escolhidos" };
+        remove.Click += (_, _) => OpenRemoveDialog();
         var close = new Button { Content = "Fechar", Width = 90, Height = 34, IsCancel = true };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
+        buttons.Children.Add(remove);
         buttons.Children.Add(add);
         buttons.Children.Add(close);
 
@@ -93,6 +97,17 @@ public sealed class ModelosWindow : Window
         _list.ItemsSource = text.Length == 0
             ? _libs
             : _libs.Where(l => l.Contains(text, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    private void OpenRemoveDialog()
+    {
+        if (_list.SelectedItem is not string lib)
+        {
+            MessageDialog.Info(this, "Remover lib", "Selecione, na lista, a lib que deseja remover.");
+            return;
+        }
+        var dialog = new RemoverLibWindow(this, _settings, lib, _templates.Items.Cast<string>().ToList(), Selected, _entries);
+        if (dialog.ShowDialog() == true) LoadLibs();
     }
 
     private void OpenAddDialog()

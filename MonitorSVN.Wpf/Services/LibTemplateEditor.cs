@@ -95,7 +95,67 @@ public static class LibTemplateEditor
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Desfaz <see cref="AddToBat"/>: tira o "SET Exec...=0" e o bloco "IF %Exec...% EQU 0 ( ... )" da lib.
+    /// Recusa se o bloco nao tiver o formato conhecido, para nunca apagar nada de outra lib.
+    /// </summary>
+    public static string RemoveFromBat(string bat, string name)
+    {
+        ValidateName(name);
+        var n = Regex.Escape(name);
+        var setLine = Regex.Match(bat, $@"(?im)^[ \t]*SET[ \t]+Exec{n}[ \t]*=0[ \t]*\r?\n");
+        var blocks = Regex.Matches(bat,
+            $@"(?im)^IF[ \t]+%Exec{n}%[ \t]+EQU[ \t]+0[ \t]+\(\r?\n(?:[^\r\n]*\r?\n)*?\)[ \t]*(?:\r?\n|$)(?:[ \t]*\r?\n)?");
+
+        if (!setLine.Success && blocks.Count == 0)
+            throw new LibEditException($"{name} nao esta no _FechamentoArquivos.bat.");
+        if (blocks.Count > 1)
+            throw new LibEditException($"_FechamentoArquivos.bat: {name} aparece em mais de um bloco; nao sei qual remover.");
+
+        var sb = new StringBuilder(bat);
+        if (blocks.Count == 1)
+        {
+            var b = blocks[0];
+            // o bloco tem de ser so desta lib: o .cmd dela e mais nenhuma variavel Exec... alem da propria
+            var otherVars = Regex.Matches(b.Value, @"(?i)Exec[A-Za-z0-9_]+").Select(m => m.Value)
+                .Where(v => !v.Equals("Exec" + name, StringComparison.OrdinalIgnoreCase));
+            if (!Regex.IsMatch(b.Value, $@"comandosCMD\\{n}\.cmd", RegexOptions.IgnoreCase) || otherVars.Any())
+                throw new LibEditException($"_FechamentoArquivos.bat: o bloco de {name} esta fora do formato esperado; remova a mao.");
+            sb.Remove(b.Index, b.Length);   // posicao maior primeiro: nao desloca a linha do SET
+        }
+        if (setLine.Success) sb.Remove(setLine.Index, setLine.Length);
+        return sb.ToString();
+    }
+
     // ------------------------------------------------------------------ _ComandosBKP.txt / comando do Jenkins
+
+    /// <summary>
+    /// Desfaz <see cref="AddToBkp"/>: tira as 4 linhas da lib (CALL, IF, madExceptPatch, copy) e a linha em branco
+    /// que as antecede. Recusa se as 4 linhas nao forem as esperadas.
+    /// </summary>
+    public static string RemoveFromBkp(string bkp, string name)
+    {
+        ValidateName(name);
+        var n = Regex.Escape(name);
+        var found = Regex.Matches(bkp,
+            $@"(?im)^CALL[^\r\n]*ddcc32NovoDX10\.cmd[ \t]+{n}[ \t][^\r\n]*\r?\n(?<l2>[^\r\n]*)\r?\n(?<l3>[^\r\n]*)\r?\n(?<l4>[^\r\n]*)(?:\r?\n|$)");
+        if (found.Count == 0) throw new LibEditException($"{name} nao esta nos comandos de compilacao.");
+        if (found.Count > 1) throw new LibEditException($"{name} aparece mais de uma vez nos comandos de compilacao; nao sei qual remover.");
+
+        var m = found[0];
+        var ok = Regex.IsMatch(m.Groups["l2"].Value, @"^\s*IF NOT %ERRORLEVEL% == 0 GOTO END\s*$", RegexOptions.IgnoreCase) &&
+                 m.Groups["l3"].Value.Contains("madExceptPatch.exe", StringComparison.OrdinalIgnoreCase) &&
+                 m.Groups["l3"].Value.Contains(name, StringComparison.OrdinalIgnoreCase) &&
+                 Regex.IsMatch(m.Groups["l4"].Value, @"^\s*copy /Y\b", RegexOptions.IgnoreCase) &&
+                 m.Groups["l4"].Value.Contains(name, StringComparison.OrdinalIgnoreCase);
+        if (!ok)
+            throw new LibEditException($"Comandos de {name} fora do formato esperado (4 linhas: CALL, IF, madExceptPatch, copy); remova a mao.");
+
+        var start = m.Index;
+        var blankBefore = Regex.Match(bkp[..start], @"(?<=(?:^|\n))[ \t]*\r?\n\z");
+        if (blankBefore.Success) start = blankBefore.Index;
+        return bkp.Remove(start, m.Index + m.Length - start);
+    }
 
     public static string AddToBkp(string bkp, LibSpec lib)
     {
@@ -154,7 +214,14 @@ public static class LibTemplateEditor
     /// Aplica <see cref="AddToBkp"/> ao passo "Executar comando batch" do job-modelo. So mexe no unico
     /// elemento &lt;command&gt; que contem 'echo concluido'; o resto do XML e preservado byte a byte.
     /// </summary>
-    public static string AddToJobConfig(string configXml, LibSpec lib)
+    public static string AddToJobConfig(string configXml, LibSpec lib) =>
+        EditJobCommand(configXml, command => AddToBkp(command, lib));
+
+    /// <summary>Desfaz <see cref="AddToJobConfig"/> no passo "Executar comando batch" do job.</summary>
+    public static string RemoveFromJobConfig(string configXml, string name) =>
+        EditJobCommand(configXml, command => RemoveFromBkp(command, name));
+
+    private static string EditJobCommand(string configXml, Func<string, string> edit)
     {
         var targets = CommandElement.Matches(configXml)
             .Cast<Match>()
@@ -167,7 +234,7 @@ public static class LibTemplateEditor
                 : "Job-modelo do Jenkins: ha mais de um comando com 'echo concluido'; nao sei qual alterar.");
 
         var body = targets[0].Groups["body"];
-        var updated = AddToBkp(WebUtility.HtmlDecode(body.Value), lib);
+        var updated = edit(WebUtility.HtmlDecode(body.Value));
         return configXml.Remove(body.Index, body.Length).Insert(body.Index, EscapeXmlText(updated));
     }
 

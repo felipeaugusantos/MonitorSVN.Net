@@ -10,6 +10,16 @@ public sealed class TemplatePlan
     public required string Template { get; init; }
     public string? Error { get; set; }
     public bool AlreadyExists { get; set; }
+
+    /// <summary>Remocao: o plano apaga o .cmd da lib (CmdPath) em vez de criar.</summary>
+    public bool IsRemoval { get; set; }
+    public bool DeleteCmd { get; set; }
+
+    /// <summary>Remocao: a lib nao esta em nenhum dos lugares.</summary>
+    public bool NotFound { get; set; }
+
+    /// <summary>Remocao: o que sera tirado, em texto, para o resumo.</summary>
+    public List<string> Actions { get; } = new();
     public string? BatPath { get; set; }
     public string? BkpPath { get; set; }
     public string? CmdPath { get; set; }
@@ -18,7 +28,7 @@ public sealed class TemplatePlan
     public string? NewCmd { get; set; }
     public string? NewJobConfig { get; set; }
     public string? OldJobConfig { get; set; }
-    public bool Ok => Error is null && !AlreadyExists;
+    public bool Ok => Error is null && !AlreadyExists && !NotFound;
 
     public string Summary
     {
@@ -26,6 +36,8 @@ public sealed class TemplatePlan
         {
             if (Error is not null) return $"[{Template}] ERRO: {Error}";
             if (AlreadyExists) return $"[{Template}] ja possui a lib; nada a fazer.";
+            if (NotFound) return $"[{Template}] nao possui a lib; nada a remover.";
+            if (IsRemoval) return $"[{Template}] sera alterado:" + string.Concat(Actions.Select(a => Environment.NewLine + "  - " + a));
             var lines = new List<string> { $"[{Template}] sera alterado:" };
             if (BatPath is not null) lines.Add($"  - {BatPath} (+ declaracao e bloco de execucao)");
             if (BkpPath is not null) lines.Add($"  - {BkpPath} (+ comando de compilacao)");
@@ -145,6 +157,84 @@ public static class TemplateLibService
         return plan;
     }
 
+    /// <summary>Calcula, sem gravar, o que sai do modelo ao remover a lib: .bat, .txt, .cmd e o job do Jenkins.</summary>
+    public static async Task<TemplatePlan> PlanRemoveAsync(string template, string name, AppSettings settings,
+        JenkinsClient? jenkins, CancellationToken ct)
+    {
+        var plan = new TemplatePlan { Template = template, IsRemoval = true };
+        try
+        {
+            LibTemplateEditor.ValidateName(name);
+            var folder = TemplateFolder(settings, template);
+            if (!Directory.Exists(folder)) throw new LibEditException($"Pasta-modelo nao encontrada: {folder}");
+
+            var batPath = FindFile(folder, BatName) ?? throw new LibEditException($"{BatName} nao encontrado (ou duplicado) em {folder}");
+            var bkpPath = FindFile(folder, BkpName) ?? throw new LibEditException($"{BkpName} nao encontrado (ou duplicado) em {folder}");
+            var cmdPath = Path.Combine(folder, "comandosCMD", name + ".cmd");
+
+            var bat = File.ReadAllText(batPath, Enc);
+            var bkp = File.ReadAllText(bkpPath, Enc);
+            var inBat = LibTemplateEditor.BatHas(bat, name);
+            var inBkp = LibTemplateEditor.BkpHas(bkp, name);
+            var hasCmd = File.Exists(cmdPath);
+
+            string? config = null;
+            var inJob = false;
+            if (jenkins is not null)
+            {
+                config = await jenkins.GetJobConfigAsync(template, ct);
+                inJob = LibTemplateEditor.JobConfigHas(config, name);
+            }
+
+            if (!inBat && !inBkp && !hasCmd && !inJob)
+            {
+                plan.NotFound = true;
+                return plan;
+            }
+
+            plan.BatPath = batPath;
+            plan.BkpPath = bkpPath;
+            plan.CmdPath = cmdPath;
+            if (inBat)
+            {
+                plan.NewBat = LibTemplateEditor.RemoveFromBat(bat, name);
+                plan.Actions.Add($"{batPath} (- declaracao e bloco de execucao)");
+            }
+            if (inBkp)
+            {
+                plan.NewBkp = LibTemplateEditor.RemoveFromBkp(bkp, name);
+                plan.Actions.Add($"{bkpPath} (- comando de compilacao)");
+            }
+            if (hasCmd)
+            {
+                plan.DeleteCmd = true;
+                plan.Actions.Add($"{cmdPath} (arquivo removido; copia nos backups)");
+            }
+            if (config is not null)
+            {
+                plan.OldJobConfig = config;
+                if (inJob)
+                {
+                    plan.NewJobConfig = LibTemplateEditor.RemoveFromJobConfig(config, name);
+                    plan.Actions.Add($"Jenkins: job '{template}' (- comando de compilacao)");
+                }
+            }
+        }
+        catch (LibEditException ex)
+        {
+            plan.Error = ex.Message;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or HttpRequestException)
+        {
+            plan.Error = ex.Message;
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            plan.Error = "Jenkins: tempo esgotado aguardando resposta.";
+        }
+        return plan;
+    }
+
     /// <summary>
     /// Grava os planos validos. Guarda copia dos originais, atualiza o Jenkins primeiro (se falhar, nada local mudou)
     /// e so entao os arquivos. Retorna a pasta das copias de seguranca.
@@ -152,7 +242,7 @@ public static class TemplateLibService
     public static async Task<string> ApplyAsync(IReadOnlyList<TemplatePlan> plans, string libName,
         JenkinsClient? jenkins, string backupRoot, CancellationToken ct)
     {
-        var backup = Path.Combine(backupRoot, DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" + libName);
+        var backup = Path.Combine(backupRoot, DateTime.Now.ToString("yyyyMMdd-HHmmss") + (plans.Any(p => p.IsRemoval) ? "-remover-" : "-") + libName);
         Directory.CreateDirectory(backup);
 
         foreach (var plan in plans.Where(p => p.Ok))
@@ -161,6 +251,8 @@ public static class TemplateLibService
             Directory.CreateDirectory(dir);
             File.Copy(plan.BatPath!, Path.Combine(dir, BatName));
             File.Copy(plan.BkpPath!, Path.Combine(dir, BkpName));
+            if (plan.DeleteCmd && File.Exists(plan.CmdPath!))
+                File.Copy(plan.CmdPath!, Path.Combine(dir, Path.GetFileName(plan.CmdPath!)));
             if (plan.OldJobConfig is not null)
                 File.WriteAllText(Path.Combine(dir, "jenkins-config.xml"), plan.OldJobConfig, new UTF8Encoding(false));
         }
@@ -170,12 +262,13 @@ public static class TemplateLibService
 
         foreach (var plan in plans.Where(p => p.Ok))
         {
-            File.WriteAllText(plan.BatPath!, plan.NewBat!, Enc);
-            File.WriteAllText(plan.BkpPath!, plan.NewBkp!, Enc);
-            File.WriteAllText(plan.CmdPath!, plan.NewCmd!, Enc);
-            AppLog.Info($"Lib {libName} incluida no modelo {plan.Template} (job do Jenkins: {(plan.NewJobConfig is not null ? "atualizado" : "nao alterado")}).");
+            if (plan.NewBat is not null) File.WriteAllText(plan.BatPath!, plan.NewBat, Enc);
+            if (plan.NewBkp is not null) File.WriteAllText(plan.BkpPath!, plan.NewBkp, Enc);
+            if (plan.NewCmd is not null) File.WriteAllText(plan.CmdPath!, plan.NewCmd, Enc);
+            if (plan.DeleteCmd) File.Delete(plan.CmdPath!);
+            AppLog.Info($"Lib {libName} {(plan.IsRemoval ? "removida" : "incluida")} no modelo {plan.Template} (job do Jenkins: {(plan.NewJobConfig is not null ? "atualizado" : "nao alterado")}).");
         }
-        AppLog.Info($"Copia dos originais da inclusao de {libName}: {backup}");
+        AppLog.Info($"Copia dos originais da alteracao de {libName}: {backup}");
         return backup;
     }
 
