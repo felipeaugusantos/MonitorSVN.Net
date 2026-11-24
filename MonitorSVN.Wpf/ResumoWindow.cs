@@ -54,7 +54,13 @@ public sealed class ResumoWindow : Window
         AddColumn(_authors, "Commits", nameof(AuthorStat.Commits), 90);
         AddColumn(_authors, "Com erro", nameof(AuthorStat.Errors), 90);
 
-        var close = new Button { Content = "Fechar", Width = 90, Height = 34, IsCancel = true, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
+        var close = new Button { Content = "Fechar", Width = 90, Height = 34, IsCancel = true };
+        var export = new Button { Content = "Exportar CSV…", Padding = new Thickness(16, 0, 16, 0), Height = 34, Margin = new Thickness(0, 0, 8, 0),
+                                  ToolTip = "Salva os commits do período (com início, término, duração e status) para abrir no Excel" };
+        export.Click += (_, _) => Export();
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
+        buttons.Children.Add(export);
+        buttons.Children.Add(close);
 
         var panel = new StackPanel { Margin = new Thickness(20) };
         panel.Children.Add(Label("Período"));
@@ -70,7 +76,7 @@ public sealed class ResumoWindow : Window
         panel.Children.Add(_content);
         _note.SetResourceReference(TextBlock.ForegroundProperty, "TextMutedBrush");
         panel.Children.Add(_note);
-        panel.Children.Add(close);
+        panel.Children.Add(buttons);
         Content = panel;
 
         _period.SelectionChanged += (_, _) => Refresh();
@@ -126,6 +132,42 @@ public sealed class ResumoWindow : Window
         var l = new TextBlock { Text = text, FontSize = 12, Margin = new Thickness(0, 12, 0, 4) };
         l.SetResourceReference(TextBlock.ForegroundProperty, "TextMutedBrush");
         return l;
+    }
+
+    private int SelectedDays => Periods[Math.Max(0, _period.SelectedIndex)].Days;
+
+    private void Export()
+    {
+        var days = SelectedDays;
+        var csv = CsvExporter.Build(_entries, DateTime.Now, days);
+        var rows = csv.Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Length - 1;
+        if (rows == 0)
+        {
+            MessageDialog.Info(this, "Exportar CSV", "Não há commits no período escolhido.");
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Exportar CSV",
+            Filter = "CSV (*.csv)|*.csv",
+            FileName = $"MonitorSVN-{DateTime.Now:yyyyMMdd}-{days}d.csv",
+            DefaultExt = ".csv",
+            OverwritePrompt = true
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        try
+        {
+            CsvExporter.Save(dialog.FileName, csv);
+            AppLog.Info($"CSV exportado: {dialog.FileName} ({rows} linhas).");
+            MessageDialog.Info(this, "Exportar CSV", $"{rows} linha(s) salvas em:\n{dialog.FileName}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Warn("Nao foi possivel exportar o CSV.", ex);
+            MessageDialog.Info(this, "Não foi possível salvar", ex.Message + "\n\nSe o arquivo estiver aberto no Excel, feche-o e tente de novo.");
+        }
     }
 
     private void Refresh()
