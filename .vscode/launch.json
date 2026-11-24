@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "MonitorSVN (WPF)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/MonitorSVN.Wpf/bin/Debug/net10.0-windows/MonitorSVN.dll",
+      "cwd": "${workspaceFolder}/MonitorSVN.Wpf",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": "MonitorSVN (WPF) - dados de teste",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/MonitorSVN.Wpf/bin/Debug/net10.0-windows/MonitorSVN.dll",
+      "cwd": "${workspaceFolder}/MonitorSVN.Wpf",
+      "console": "internalConsole",
+      "stopAtEntry": false,
+      "env": {
+        "MONITORSVN_DATA": "${workspaceFolder}/.debug-data"
+      }
+    }
+  ]
+}

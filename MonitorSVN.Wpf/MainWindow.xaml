@@ -1,0 +1,414 @@
+<Window x:Class="MonitorSVN.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Monitor SVN" Width="1440" Height="900" MinWidth="1400" MinHeight="620"
+        Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextBrush}"
+        FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <!-- Cartao: superficie com borda e cantos arredondados -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="20"/>
+        </Style>
+
+        <Style x:Key="CardTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        </Style>
+
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
+            <Setter Property="Margin" Value="0,16,0,0"/>
+        </Style>
+
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+            <Setter Property="Margin" Value="0,10,0,4"/>
+        </Style>
+
+        <Style x:Key="CellText" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="12,0"/>
+        </Style>
+        <Style x:Key="CellCenter" TargetType="TextBlock" BasedOn="{StaticResource CellText}">
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="HeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridColumnHeader">
+                        <Grid>
+                            <Border Background="{TemplateBinding Background}" BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="0,0,0,1" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter VerticalAlignment="Center"
+                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+                            </Border>
+                            <Thumb x:Name="PART_LeftHeaderGripper" HorizontalAlignment="Left" Width="6" Cursor="SizeWE">
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                            <Thumb x:Name="PART_RightHeaderGripper" HorizontalAlignment="Right" Width="6" Cursor="SizeWE">
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="Thumb"><Border Background="Transparent"/></ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="HeaderCenter" TargetType="DataGridColumnHeader" BasedOn="{StaticResource HeaderStyle}">
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="CellStyle" TargetType="DataGridCell">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource SelectionTextBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Linhas: hover/selecao suaves, dias anteriores esmaecidos, erro com fundo avermelhado -->
+        <Style x:Key="RowStyle" TargetType="DataGridRow">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsPast}" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Error">
+                    <Setter Property="Background" Value="{DynamicResource DangerSoftBrush}"/>
+                </DataTrigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource HoverBrush}"/>
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Status como etiqueta (cor + texto) -->
+        <DataTemplate x:Key="StatusTemplate">
+            <Border x:Name="Pill" HorizontalAlignment="Center" VerticalAlignment="Center" CornerRadius="10"
+                    Padding="10,2" Background="{DynamicResource NeutralSoftBrush}" ToolTip="{Binding ToolTipText}">
+                <TextBlock x:Name="Label" Text="Pendente" FontSize="11.5" FontWeight="SemiBold"
+                           Foreground="{DynamicResource NeutralBrush}"/>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Status}" Value="Ignored">
+                    <Setter TargetName="Label" Property="Text" Value="Ignorado"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Generated">
+                    <Setter TargetName="Pill" Property="Background" Value="{DynamicResource SuccessSoftBrush}"/>
+                    <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+                    <Setter TargetName="Label" Property="Text" Value="Gerado"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="InProgress">
+                    <Setter TargetName="Pill" Property="Background" Value="{DynamicResource WarningSoftBrush}"/>
+                    <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource WarningBrush}"/>
+                    <Setter TargetName="Label" Property="Text" Value="Em andamento"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Error">
+                    <Setter TargetName="Pill" Property="Background" Value="{DynamicResource DangerSoftBrush}"/>
+                    <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+                    <Setter TargetName="Label" Property="Text" Value="Erro"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsPast}" Value="True">
+                    <Setter TargetName="Pill" Property="Opacity" Value="0.65"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid Margin="20,16,20,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" MinWidth="440"/>
+            <ColumnDefinition Width="16"/>
+            <ColumnDefinition Width="1.15*" MinWidth="870"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ================= Cabecalho ================= -->
+        <DockPanel Grid.Row="0" Grid.ColumnSpan="3" Margin="0,0,0,16">
+            <Button x:Name="btnTheme" DockPanel.Dock="Right" Style="{StaticResource IconButton}" VerticalAlignment="Center"
+                    Content="&#xE708;" ToolTip="Alternar tema claro/escuro" Click="BtnTheme_Click"/>
+            <Button x:Name="btnModels" DockPanel.Dock="Right" Content="Modelos" Height="36" Padding="18,0"
+                    Margin="0,0,10,0" VerticalAlignment="Center" Click="BtnModels_Click"
+                    ToolTip="Incluir libs nos modelos (pasta e Jenkins)"/>
+            <Button x:Name="btnAbout" DockPanel.Dock="Right" Content="Sobre" Height="36" Padding="18,0"
+                    Margin="0,0,10,0" VerticalAlignment="Center" Click="BtnAbout_Click"/>
+            <Button x:Name="btnRun" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Height="36"
+                    Padding="18,0" Margin="0,0,10,0" VerticalAlignment="Center" Click="BtnRun_Click">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xE72C;" FontFamily="{StaticResource IconFont}" FontSize="14"
+                               VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBlock Text="Forçar monitoramento" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <StackPanel>
+                <TextBlock Text="Monitor SVN" FontSize="22" FontWeight="SemiBold"/>
+                <TextBlock Text="Acompanha os commits do SVN e dispara a geração das versões no Jenkins"
+                           Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0"/>
+            </StackPanel>
+        </DockPanel>
+
+        <!-- ================= Cartao esquerdo: configuracao ================= -->
+        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource Card}" Padding="0">
+            <ScrollViewer x:Name="leftScroll" VerticalScrollBarVisibility="Auto" SizeChanged="LeftScroll_SizeChanged">
+              <!-- MinHeight = area visivel: com a janela grande a lista de diretorios cresce e ocupa o espaco livre -->
+              <Border x:Name="leftContent" Padding="20,16,20,20">
+                <Grid>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*" MinHeight="110"/>
+                    <RowDefinition Height="Auto"/>
+                  </Grid.RowDefinitions>
+                  <StackPanel>
+                    <TextBlock Text="Monitorar" Style="{StaticResource CardTitle}"/>
+
+                    <TextBlock Text="REPOSITÓRIO" Style="{StaticResource SectionTitle}" Margin="0,16,0,0"/>
+                    <TextBlock Text="URL do repositório SVN" Style="{StaticResource Label}"/>
+                    <TextBox x:Name="txtSvnUrl"/>
+                    <TextBlock Text="Diretórios/versões monitoradas" Style="{StaticResource Label}"/>
+                  </StackPanel>
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ListBox x:Name="lstDirs"/>
+                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                            <Button Style="{StaticResource IconButton}" Content="&#xE710;" Foreground="{DynamicResource SuccessBrush}"
+                                    ToolTip="Incluir diretório/versão" Margin="0,0,0,6" Click="BtnAddDir_Click"/>
+                            <Button Style="{StaticResource IconButton}" Content="&#xE738;" Foreground="{DynamicResource DangerBrush}"
+                                    ToolTip="Remover diretório/versão" Click="BtnDelDir_Click"/>
+                        </StackPanel>
+                    </Grid>
+
+                  <StackPanel Grid.Row="2">
+                    <TextBlock Text="JENKINS" Style="{StaticResource SectionTitle}"/>
+                    <Grid Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                            <TextBlock Text="Usuário" Style="{StaticResource Label}" Margin="0,6,0,4"/>
+                            <TextBox x:Name="txtUser"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,14,0">
+                            <TextBlock Text="Senha" Style="{StaticResource Label}" Margin="0,6,0,4"/>
+                            <PasswordBox x:Name="pwdPassword"/>
+                        </StackPanel>
+                        <CheckBox x:Name="chkRemember" Grid.Column="2" Content="Lembrar" VerticalAlignment="Bottom" Margin="0,0,0,7"/>
+                    </Grid>
+                    <TextBlock Text="URL de disparo do build" Style="{StaticResource Label}"/>
+                    <TextBox x:Name="txtBuildUrl"/>
+                    <TextBlock Text="URL raiz do Jenkins" Style="{StaticResource Label}"/>
+                    <TextBox x:Name="txtJenkinsUrl"/>
+
+                    <TextBlock Text="GERAÇÃO" Style="{StaticResource SectionTitle}"/>
+                    <TextBlock Text="Pasta raiz de geração" Style="{StaticResource Label}" Margin="0,10,0,4"/>
+                    <TextBox x:Name="txtRoot"/>
+                    <TextBlock Text="Ignorar commits de" Style="{StaticResource Label}"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="200"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ListBox x:Name="lstIgnored" Height="60"/>
+                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                            <Button Style="{StaticResource IconButton}" Content="&#xE710;" Foreground="{DynamicResource SuccessBrush}"
+                                    ToolTip="Incluir usuário" Margin="0,0,0,6" Click="BtnAddUser_Click"/>
+                            <Button Style="{StaticResource IconButton}" Content="&#xE738;" Foreground="{DynamicResource DangerBrush}"
+                                    ToolTip="Remover usuário" Click="BtnDelUser_Click"/>
+                        </StackPanel>
+                    </Grid>
+                  </StackPanel>
+                </Grid>
+              </Border>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ================= Cartao direito: ultimos monitoramentos ================= -->
+        <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource Card}" Padding="0">
+            <DockPanel>
+                <Grid DockPanel.Dock="Top" Margin="20,16,20,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Últimos monitoramentos" Style="{StaticResource CardTitle}" VerticalAlignment="Top"
+                               Margin="0,6,16,0"/>
+                    <!-- Os filtros quebram de linha quando a janela e estreita, em vez de serem cortados -->
+                    <WrapPanel Grid.Column="1" HorizontalAlignment="Right">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <TextBlock Text="Commit feito em" Foreground="{DynamicResource TextMutedBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <DatePicker x:Name="dtpFilter" Width="150" SelectedDateChanged="DtpFilter_Changed"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="18,0,0,6">
+                            <TextBlock Text="Buscar:" Foreground="{DynamicResource TextMutedBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBox x:Name="txtSearch" Width="190" MaxLength="60" TextChanged="TxtSearch_Changed"
+                                     KeyDown="TxtSearch_KeyDown"
+                                     ToolTip="Pesquisa por revisão (ex.: 507109 ou r507109), autor ou versão, em todos os dias carregados (ignora a data).&#x0a;Vários termos: todos precisam casar (ex.: renan 150.100).&#x0a;Esc limpa."/>
+                        </StackPanel>
+                    </WrapPanel>
+                </Grid>
+
+                <Grid>
+                    <DataGrid x:Name="grid" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                              MouseDoubleClick="Grid_MouseDoubleClick"
+                              PreviewMouseRightButtonDown="Grid_PreviewMouseRightButtonDown"
+                              CanUserResizeRows="False" HeadersVisibility="Column" SelectionMode="Single"
+                              SelectionUnit="FullRow" GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="{DynamicResource BorderBrush}"
+                              VerticalGridLinesBrush="Transparent" BorderThickness="0,1,0,0"
+                              BorderBrush="{DynamicResource BorderBrush}" Background="Transparent"
+                              Foreground="{DynamicResource TextBrush}" RowHeight="38"
+                              RowStyle="{StaticResource RowStyle}" CellStyle="{StaticResource CellStyle}"
+                              ColumnHeaderStyle="{StaticResource HeaderStyle}">
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Abrir no Jenkins" Click="MnuOpenJenkins_Click"/>
+                                <MenuItem Header="Copiar revisão" Click="MnuCopyRev_Click"/>
+                                <Separator/>
+                                <MenuItem Header="Reprocessar" Click="MnuReprocess_Click"/>
+                                <MenuItem Header="Excluir (somente com erro)" Click="MnuDelete_Click"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="" Width="58">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasChildren}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <Button Style="{StaticResource GhostIconButton}" Width="24" Height="24" MinHeight="0"
+                                                    FontSize="10" Content="{Binding ToggleGlyph}" Click="BtnToggleGroup_Click"
+                                                    ToolTip="Expandir/recolher commits da mesma versão"/>
+                                            <TextBlock Text="{Binding ChildCountText}" FontSize="11"
+                                                       Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center"
+                                                       Margin="2,0,0,0"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Revisão" Binding="{Binding RevisionText}"
+                                                HeaderStyle="{StaticResource HeaderCenter}"
+                                                ElementStyle="{StaticResource CellCenter}" Width="110"/>
+                            <DataGridTextColumn Header="Autor" Binding="{Binding Author}"
+                                                HeaderStyle="{StaticResource HeaderCenter}"
+                                                ElementStyle="{StaticResource CellCenter}" Width="110"/>
+                            <DataGridTextColumn Header="Versão" Binding="{Binding Version}"
+                                                HeaderStyle="{StaticResource HeaderCenter}"
+                                                ElementStyle="{StaticResource CellCenter}" Width="*" MinWidth="180"/>
+                            <DataGridTextColumn Header="Data" Binding="{Binding Timestamp, StringFormat=dd/MM/yyyy}"
+                                                HeaderStyle="{StaticResource HeaderCenter}"
+                                                ElementStyle="{StaticResource CellCenter}" Width="90"/>
+                            <DataGridTextColumn Header="Hora" Binding="{Binding Timestamp, StringFormat=HH:mm}"
+                                                HeaderStyle="{StaticResource HeaderCenter}"
+                                                ElementStyle="{StaticResource CellCenter}" Width="60"/>
+                            <DataGridTextColumn Header="Início" Binding="{Binding StartedText}"
+                                                HeaderStyle="{StaticResource HeaderCenter}"
+                                                ElementStyle="{StaticResource CellCenter}" Width="60"/>
+                            <DataGridTextColumn Header="Término" Binding="{Binding FinishedText}"
+                                                HeaderStyle="{StaticResource HeaderCenter}"
+                                                ElementStyle="{StaticResource CellCenter}" Width="70"/>
+                            <DataGridTemplateColumn Header="Status" Width="116" HeaderStyle="{StaticResource HeaderCenter}"
+                                                    CellTemplate="{StaticResource StatusTemplate}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Estado vazio -->
+                    <TextBlock x:Name="lblEmpty" Text="Nenhum commit nesta data" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Margin="0,24,0,0" IsHitTestVisible="False">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Items.Count, ElementName=grid}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+            </DockPanel>
+        </Border>
+
+        <!-- ================= Aviso ================= -->
+        <Border x:Name="warnBanner" Grid.Row="2" Grid.ColumnSpan="3" Margin="0,12,0,0" Padding="14,10"
+                CornerRadius="8" Background="{DynamicResource DangerSoftBrush}" BorderThickness="1"
+                BorderBrush="{DynamicResource DangerBrush}" Visibility="Collapsed">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource IconFont}" FontSize="16"
+                           Foreground="{DynamicResource DangerBrush}" VerticalAlignment="Top" Margin="0,2,12,0"/>
+                <ScrollViewer Grid.Column="1" MaxHeight="64" VerticalScrollBarVisibility="Auto">
+                    <TextBlock x:Name="lblWarn" Foreground="{DynamicResource DangerBrush}" TextWrapping="Wrap"/>
+                </ScrollViewer>
+                <Button Grid.Column="2" Style="{StaticResource GhostIconButton}" Content="&#xE711;" Width="26" Height="26"
+                        MinHeight="0" FontSize="10" Foreground="{DynamicResource DangerBrush}" VerticalAlignment="Top"
+                        Margin="8,0,0,0" ToolTip="Dispensar aviso" Click="BtnDismissWarn_Click"/>
+            </Grid>
+        </Border>
+
+        <!-- ================= Barra de status ================= -->
+        <DockPanel Grid.Row="3" Grid.ColumnSpan="3" Margin="0,10,0,12" LastChildFill="True">
+            <ProgressBar x:Name="progress" DockPanel.Dock="Left" Width="120" IsIndeterminate="True"
+                         Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed"/>
+            <TextBlock x:Name="lblInfo" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center"
+                       Text="Aguardando a primeira verificação..."/>
+        </DockPanel>
+    </Grid>
+</Window>

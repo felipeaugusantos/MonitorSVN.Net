@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="MonitorSVN.Tests/MonitorSVN.Tests.csproj" />
+  <Project Path="MonitorSVN.Wpf/MonitorSVN.Wpf.csproj" />
+</Solution>
