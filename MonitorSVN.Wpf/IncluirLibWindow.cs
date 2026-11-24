@@ -137,7 +137,9 @@ public sealed class IncluirLibWindow : Window
         _source.IsReadOnly = _output.IsReadOnly = !IsCustom;
         if (IsCustom) return;
 
-        var name = _name.Text.Trim();
+        // sem nome ainda, mostra o marcador <nome> em vez de deixar "\\" no meio do caminho
+        var typed = _name.Text.Trim();
+        var name = typed.Length == 0 ? "<nome>" : typed;
         var spec = _kind.SelectedIndex switch
         {
             0 => LibSpec.Cartoes(name),
