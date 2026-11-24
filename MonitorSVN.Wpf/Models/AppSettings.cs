@@ -35,6 +35,18 @@ public sealed class AppSettings
     /// <summary>Minutos de build "Em andamento" a partir dos quais o app avisa que esta demorando.</summary>
     public int SlowAfterMinutes { get; set; } = 60;
 
+    // ---- aviso por e-mail (mesmos alertas do balao da bandeja)
+    public bool EmailEnabled { get; set; }
+    public string SmtpHost { get; set; } = "";
+    public int SmtpPort { get; set; } = 587;
+    public bool SmtpSsl { get; set; } = true;
+    public string SmtpUser { get; set; } = "";
+    public string EmailFrom { get; set; } = "";
+    /// <summary>Destinatarios separados por ponto e virgula ou virgula.</summary>
+    public string EmailTo { get; set; } = "";
+    public string ProtectedSmtpPassword { get; set; } = "";
+    [JsonIgnore] public string SmtpPassword { get; set; } = "";
+
     /// <summary>Inicio da ultima varredura em que todos os diretorios foram lidos. A proxima consulta o SVN a partir desse dia.</summary>
     public DateTime? LastScan { get; set; }
 

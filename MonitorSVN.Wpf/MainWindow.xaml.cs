@@ -155,6 +155,11 @@ public partial class MainWindow : Window
         new ModelosWindow(this, _settings, _entries).ShowDialog();
     }
 
+    private void BtnEmail_Click(object sender, RoutedEventArgs e)
+    {
+        if (new EmailWindow(this, _settings).ShowDialog() == true) SaveAll();
+    }
+
     private void BtnSummary_Click(object sender, RoutedEventArgs e) =>
         new ResumoWindow(this, _entries).ShowDialog();
 
@@ -301,6 +306,24 @@ public partial class MainWindow : Window
         catch (Exception ex) { AppLog.Warn("Nao foi possivel mostrar o aviso na bandeja.", ex); }
 
         if (IsVisible) ShowWarning(title + Environment.NewLine + text);
+
+        if (_settings.EmailEnabled) _ = SendEmailAsync(alerts);
+    }
+
+    private async Task SendEmailAsync(IReadOnlyList<BuildAlert> alerts)
+    {
+        try
+        {
+            var (subject, body) = EmailNotifier.Compose(alerts);
+            await EmailNotifier.SendAsync(_settings, subject, body);
+            AppLog.Info("Aviso enviado por e-mail: " + subject);
+        }
+        catch (Exception ex)
+        {
+            var reason = ex.InnerException?.Message ?? ex.Message;
+            AppLog.Warn("Nao foi possivel enviar o aviso por e-mail.", ex);
+            ShowWarning("Não foi possível enviar o aviso por e-mail: " + reason);
+        }
     }
 
     private async Task TriggerWaitingAsync()
