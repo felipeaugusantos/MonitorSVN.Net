@@ -32,9 +32,9 @@ public class VersionFoldersTests
     [InlineData("", "", "")]
     [InlineData("Concluído 02:57", "", "Concluído 02:57")]
     [InlineData("", "Em andamento 40%", "Cloud: Em andamento 40%")]
-    [InlineData("Concluído 02:57", "Em andamento 40%", "Local: Concluído 02:57 · Cloud: Em andamento 40%")]
+    [InlineData("Concluído 02:57", "Em andamento 40%", "Local: Concluído 02:57\nCloud: Em andamento 40%")]
     public void Column_text_shows_one_side_as_is_and_labels_both_when_there_are_two(string local, string cloud, string expected) =>
-        Assert.Equal(expected, VersionFolders.ComposeColumn(local, cloud));
+        Assert.Equal(expected.Replace("\n", Environment.NewLine), VersionFolders.ComposeColumn(local, cloud));
 
     [Theory]
     [InlineData(false, 0, 0, false, FolderState.Missing)]

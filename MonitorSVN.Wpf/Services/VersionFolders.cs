@@ -59,6 +59,6 @@ public static class VersionFolders
         if (local.Length == 0 && cloud.Length == 0) return "";
         if (cloud.Length == 0) return local;
         if (local.Length == 0) return "Cloud: " + cloud;
-        return $"Local: {local} · Cloud: {cloud}";
+        return $"Local: {local}{Environment.NewLine}Cloud: {cloud}";
     }
 }

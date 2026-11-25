@@ -133,7 +133,7 @@ ou `.bpl`** na raiz da pasta. O código de saída do BAT não é usado, porque e
 **Local e Cloud.** Cada versão gerada tem duas pastas irmãs na pasta raiz de geração: `379.48.2.30.74.150` (Local) e
 `379.48.2.30.74.150_CLOUD` (Cloud). A linha da tabela é uma só, e o menu tem um item para cada pasta. Os dois usam
 o mesmo BAT. Se uma das pastas não existir, o item dela fica desligado (passe o mouse para ver o caminho esperado).
-Quando as duas têm fechamento, a coluna **Fechamento** mostra os dois: `Local: Concluído 02:57 · Cloud: Em andamento 40%`.
+Quando as duas têm fechamento, a coluna **Fechamento** mostra os dois: `Local: Concluído 02:57` e, na linha de baixo, `Cloud: Em andamento 40%`.
 
 A coluna **Pastas** mostra a situação de cada pasta, com uma cor para cada lado (Local e Cloud):
 
