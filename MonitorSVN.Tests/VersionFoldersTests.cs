@@ -1,4 +1,4 @@
-using MonitorSVN.Services;
+﻿using MonitorSVN.Services;
 
 namespace MonitorSVN.Tests;
 
@@ -35,4 +35,12 @@ public class VersionFoldersTests
     [InlineData("Concluído 02:57", "Em andamento 40%", "Local: Concluído 02:57 · Cloud: Em andamento 40%")]
     public void Column_text_shows_one_side_as_is_and_labels_both_when_there_are_two(string local, string cloud, string expected) =>
         Assert.Equal(expected, VersionFolders.ComposeColumn(local, cloud));
+
+    [Theory]
+    [InlineData(true, true, "Local ✓ · Cloud ✓")]
+    [InlineData(true, false, "Local ✓ · Cloud ✗")]
+    [InlineData(false, true, "Local ✗ · Cloud ✓")]
+    [InlineData(false, false, "Local ✗ · Cloud ✗")]
+    public void Folders_text_shows_which_sibling_folders_exist(bool local, bool cloud, string expected) =>
+        Assert.Equal(expected, VersionFolders.FoldersText(local, cloud));
 }

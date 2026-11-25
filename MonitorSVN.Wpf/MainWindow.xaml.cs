@@ -626,6 +626,13 @@ public partial class MainWindow : Window
         {
             var local = ClosingPart(FolderFor(entry, false), cloud: false);
             var cloud = ClosingPart(FolderFor(entry, true), cloud: true);
+            var hasLocal = Directory.Exists(FolderFor(entry, false));
+            var hasCloud = Directory.Exists(FolderFor(entry, true));
+            var folders = VersionFolders.FoldersText(hasLocal, hasCloud);
+            if (entry.FoldersText != folders) entry.FoldersText = folders;
+            // so cobra a pasta que falta de uma versao ja gerada; antes disso e normal nao existir
+            var missing = entry.Status == BuildStatus.Generated && !(hasLocal && hasCloud);
+            if (entry.FoldersMissing != missing) entry.FoldersMissing = missing;
             var text = VersionFolders.ComposeColumn(local.Text, cloud.Text);
             var hint = string.Join(Environment.NewLine + Environment.NewLine, new[] { local.Hint, cloud.Hint }.Where(h => h.Length > 0));
             if (entry.ClosingText != text) entry.ClosingText = text;
@@ -643,6 +650,14 @@ public partial class MainWindow : Window
             item.IsEnabled = exists;
             item.ToolTip = exists ? folder : $"Pasta não encontrada: {folder}";
         }
+    }
+
+    private void MnuViewFolders_Click(object sender, RoutedEventArgs e)
+    {
+        if (grid.SelectedItem is not LogEntry entry) return;
+        CollectSettings();
+        new VersionFoldersWindow(this, entry.Version, new[] { false, true }.Select(c => FolderFor(entry, c)).ToList(),
+            _analyzer, f => ClosingPart(f, ClosingService.IsCloud(Path.GetFileName(f))).Text).ShowDialog();
     }
 
     private void MnuCloseLocal_Click(object sender, RoutedEventArgs e) => CloseVersion(cloud: false);

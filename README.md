@@ -93,6 +93,7 @@ Uma linha **amarela** indica que o último fechamento gerou **menos ZIPs** do qu
 |---|---|
 | Abrir no Jenkins | Abre o job da versão no navegador. |
 | Copiar nº da revisão | Copia o número da revisão para a área de transferência. |
+| **Ver pastas da versão** | Abre uma janela com uma linha para a pasta Local e outra para a Cloud: FileVersion, ProductVersion, Autcom MB, Origem (ZIP OK ou Somente EXE), Status e Fechamento. Pasta que não existe aparece como *Pasta não encontrada*. |
 | **Fechar versão: Local** / **Fechar versão: Cloud** | Inicia o fechamento da pasta Local ou da pasta Cloud da versão (compacta os arquivos). Só em linhas **Gerado**. O item fica desligado se a pasta não existir. |
 | **Cancelar fechamento** | Cancela os fechamentos da versão que estão na fila ou em andamento (Local e/ou Cloud). |
 | **Copiar para a rede: Local** / **Copiar para a rede: Cloud** | Abre a janela que copia os ZIPs da pasta Local ou Cloud para o destino na rede. Só em linhas **Gerado**. |
@@ -133,6 +134,8 @@ ou `.bpl`** na raiz da pasta. O código de saída do BAT não é usado, porque e
 `379.48.2.30.74.150_CLOUD` (Cloud). A linha da tabela é uma só, e o menu tem um item para cada pasta. Os dois usam
 o mesmo BAT. Se uma das pastas não existir, o item dela fica desligado (passe o mouse para ver o caminho esperado).
 Quando as duas têm fechamento, a coluna **Fechamento** mostra os dois: `Local: Concluído 02:57 · Cloud: Em andamento 40%`.
+
+A coluna **Pastas** mostra se as duas existem: `Local ✓ · Cloud ✓`. Se faltar alguma em uma versão já **Gerada**, o texto fica em vermelho (`Cloud ✗`).
 
 **O que o app confere antes de iniciar** (se algo falhar, ele mostra o motivo e não inicia):
 - a pasta existe e tem a pasta `comandosCMD` com o `_FechamentoArquivos.bat`;

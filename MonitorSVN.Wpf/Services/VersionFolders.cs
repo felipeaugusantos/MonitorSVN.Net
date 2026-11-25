@@ -21,6 +21,10 @@ public static class VersionFolders
     /// Texto da coluna Fechamento com as duas pastas. Uma so tem situacao: mostra o texto dela (como sempre foi);
     /// as duas: "Local: ... · Cloud: ...".
     /// </summary>
+    /// <summary>Coluna "Pastas": mostra se a Local e a Cloud da versao existem em disco.</summary>
+    public static string FoldersText(bool local, bool cloud) =>
+        $"Local {(local ? "✓" : "✗")} · Cloud {(cloud ? "✓" : "✗")}";
+
     public static string ComposeColumn(string local, string cloud)
     {
         if (local.Length == 0 && cloud.Length == 0) return "";

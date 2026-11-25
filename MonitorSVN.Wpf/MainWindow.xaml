@@ -1,7 +1,7 @@
 <Window x:Class="MonitorSVN.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Monitor SVN" Width="1600" Height="900" MinWidth="1540" MinHeight="620"
+        Title="Monitor SVN" Width="1700" Height="900" MinWidth="1680" MinHeight="620"
         Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextBrush}"
         FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True"
         WindowStartupLocation="CenterScreen">
@@ -343,6 +343,8 @@
                                 <MenuItem Header="Abrir no Jenkins" Click="MnuOpenJenkins_Click"/>
                                 <MenuItem Header="Copiar nº da revisão" Click="MnuCopyRev_Click"/>
                                 <Separator/>
+                                <MenuItem Header="Ver pastas da versão" Click="MnuViewFolders_Click"/>
+                                <Separator/>
                                 <MenuItem x:Name="mnuCloseLocal" Header="Fechar versão: Local" Click="MnuCloseLocal_Click"/>
                                 <MenuItem x:Name="mnuCloseCloud" Header="Fechar versão: Cloud" Click="MnuCloseCloud_Click"/>
                                 <MenuItem Header="Cancelar fechamento" Click="MnuCancelClosing_Click"/>
@@ -400,6 +402,19 @@
                             <DataGridTextColumn Header="Término" Binding="{Binding FinishedText}"
                                                 HeaderStyle="{StaticResource HeaderCenter}"
                                                 ElementStyle="{StaticResource CellCenter}" Width="64"/>
+                            <DataGridTextColumn Header="Pastas" Binding="{Binding FoldersText}"
+                                                HeaderStyle="{StaticResource HeaderCenter}" Width="140">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource CellCenter}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding FoldersMissing}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                             <DataGridTextColumn Header="Fechamento" Binding="{Binding ClosingText}"
                                                 HeaderStyle="{StaticResource HeaderCenter}"
                                                 ElementStyle="{StaticResource CellCenter}" Width="160"/>

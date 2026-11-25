@@ -56,6 +56,25 @@ public sealed class LogEntry : INotifyPropertyChanged
         set { if (_closingText == value) return; _closingText = value; OnChanged(); }
     }
 
+    private string _foldersText = "";
+
+    /// <summary>Se as pastas Local e Cloud da versao existem (coluna Pastas). Nao e gravado.</summary>
+    [JsonIgnore]
+    public string FoldersText
+    {
+        get => _foldersText;
+        set { if (_foldersText == value) return; _foldersText = value; OnChanged(); }
+    }
+
+    private bool _foldersMissing;
+
+    [JsonIgnore]
+    public bool FoldersMissing
+    {
+        get => _foldersMissing;
+        set { if (_foldersMissing == value) return; _foldersMissing = value; OnChanged(); }
+    }
+
     private string _zipHint = "";
 
     /// <summary>Aviso de "menos ZIPs que o normal" para esta versao (vazio = sem alerta). Nao e gravado.</summary>
