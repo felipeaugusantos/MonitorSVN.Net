@@ -75,6 +75,29 @@ public static class CopyRules
         return Path.Combine(individualRoot ?? IndividualRoot, versionFolder, finalName);
     }
 
+    /// <summary>
+    /// Confere o texto digitado como destino de copia extra: tira aspas, espacos e barras finais, exige caminho completo
+    /// (letra de unidade ou \\servidor\pasta) e recusa o que ja esta na lista ou entre os destinos padrao.
+    /// </summary>
+    /// <returns>O caminho limpo, ou null com o motivo em <c>Error</c>.</returns>
+    public static (string? Value, string? Error) NormalizeExtraTarget(string? text, IEnumerable<string> existing)
+    {
+        var value = (text ?? "").Trim().Trim('"').Trim();
+        if (value.Length == 0) return (null, "Informe o caminho da pasta.");
+
+        var isUnc = value.StartsWith(@"\\", StringComparison.Ordinal) && value.Length > 2;
+        var isDrive = value.Length >= 3 && char.IsLetter(value[0]) && value[1] == ':' && (value[2] == '\\' || value[2] == '/');
+        if (!isUnc && !isDrive)
+            return (null, @"Use o caminho completo, como \\servidor\pasta ou D:\pasta.");
+
+        value = value.TrimEnd('\\', '/');
+        if (isDrive && value.Length <= 2) return (null, "Informe uma pasta, não a raiz do disco.");
+
+        if (existing.Any(e => string.Equals(e.TrimEnd('\\', '/'), value, StringComparison.OrdinalIgnoreCase)))
+            return (null, "Esse destino já está na lista (ou é um dos destinos padrão).");
+        return (value, null);
+    }
+
     public static bool LocalCopyAllowed(double? autcomMb) => autcomMb is { } mb && mb < LocalMaxAutcomMb;
     public static bool CloudCopyAllowed(double? autcomMb) => autcomMb is { } mb && mb >= CloudMinAutcomMb;
 

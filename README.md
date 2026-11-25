@@ -39,6 +39,7 @@ com usuário e **senha**. Não precisa instalar .NET nem Java.
    | GERAÇÃO | Pasta raiz de geração | A pasta onde as versões são geradas e fechadas, por exemplo `C:\VERSOES_FECHADAS`. É a mesma pasta em que o Jenkins escreve e onde roda o fechamento. |
    | GERAÇÃO | Avisar se um build passar de | Minutos em andamento a partir dos quais o app avisa que está demorando. |
    | GERAÇÃO | Pasta de controle (vários operadores) | Opcional. Pasta de rede compartilhada entre os operadores. Veja [Vários operadores](#vários-operadores-no-mesmo-servidor). |
+   | GERAÇÃO | Destinos de cópia extras | Opcional. Outras pastas de rede onde a cópia procura a pasta da versão, além das duas padrão. |
    | GERAÇÃO | Fechar a versão automaticamente ao gerar | Opcional. Veja [Fechamento automático](#fechamento-automático). |
    | — | Ignorar commits de | Usuários cujos commits não devem gerar versão (por exemplo, o usuário do próprio Jenkins). |
 
@@ -241,9 +242,9 @@ Para desligar o recurso, apague o conteúdo do campo e reabra o app.
 Se a pasta de controle estiver indisponível, a instância fica em somente leitura, em vez de arriscar um build duplicado.
 Deixar o campo **Pasta de controle** vazio desliga o recurso (a instância sempre monitora, como antes).
 
-Destinos de cópia extras, além dos dois padrões, ainda não têm campo na tela: entram em
-`"ExtraCopyTargets": [ "\\\\servidor\\pasta" ]` no `%APPDATA%\MonitorSVN\settings.json` (feche o app antes de editar; em
-JSON, cada barra invertida é escrita em dobro).
+Se as versões também ficam em outras pastas de rede, além das duas padrão, inclua-as em **Destinos de cópia extras**
+(botão verde **+**; o vermelho remove). Digite o caminho completo, como `\\servidor\pasta`. Esse campo vale na hora, sem
+reabrir o app, e cada operador tem a sua lista.
 
 ---
 

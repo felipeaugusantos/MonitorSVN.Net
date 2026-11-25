@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<LogEntry> _entries;
     private readonly ObservableCollection<string> _dirs;
     private readonly ObservableCollection<string> _ignored;
+    private readonly ObservableCollection<string> _extraTargets;
     private readonly ICollectionView _view;
     private readonly VersionGrouping _grouping = new();
     private LogSearch _search = new(null);
@@ -30,7 +31,7 @@ public partial class MainWindow : Window
     private readonly System.Windows.Forms.NotifyIcon _tray = new();
 
     // abaixo desta altura o painel esquerdo passa a rolar; acima, a lista de diretorios absorve o espaco
-    private const double LeftContentMinHeight = 810;
+    private const double LeftContentMinHeight = 910;
 
     private DateTime? _lastRun;
     private bool _running;
@@ -50,6 +51,7 @@ public partial class MainWindow : Window
         _entries = new ObservableCollection<LogEntry>(_store.LoadEntries());
         _dirs = new ObservableCollection<string>(_settings.Directories);
         _ignored = new ObservableCollection<string>(_settings.IgnoredUsers);
+        _extraTargets = new ObservableCollection<string>(_settings.ExtraCopyTargets);
         _service = new MonitorService(_entries);
         _role = new MonitorRole(_settings.ControlFolder);
 
@@ -73,6 +75,7 @@ public partial class MainWindow : Window
 
         lstDirs.ItemsSource = _dirs;
         lstIgnored.ItemsSource = _ignored;
+        lstExtraTargets.ItemsSource = _extraTargets;
         ApplySettingsToControls();
 
         _view = CollectionViewSource.GetDefaultView(_entries);
@@ -139,6 +142,7 @@ public partial class MainWindow : Window
         _settings.Password = pwdPassword.Password;
         _settings.Directories = _dirs.ToList();
         _settings.IgnoredUsers = _ignored.ToList();
+        _settings.ExtraCopyTargets = _extraTargets.ToList();
     }
 
     private void SaveAll()
@@ -316,6 +320,29 @@ public partial class MainWindow : Window
         _ignored.Add(text);
         SaveAll();
     }
+
+    private void BtnAddTarget_Click(object sender, RoutedEventArgs e)
+    {
+        var text = InputDialog.Prompt(this, "Incluir destino de cópia", "Pasta de rede:");
+        if (text is null) return;
+
+        var (value, error) = CopyRules.NormalizeExtraTarget(text, _extraTargets.Concat(CopyRules.DefaultTargetRoots));
+        if (value is null)
+        {
+            MessageDialog.Info(this, "Destino de cópia", error!);
+            return;
+        }
+        // rede fora do ar nao deve impedir de cadastrar: so confirma
+        if (!Directory.Exists(value) && !MessageDialog.Confirm(this, "Atenção",
+                $"Não foi possível acessar a pasta agora:{Environment.NewLine}{value}{Environment.NewLine}{Environment.NewLine}Incluir mesmo assim?"))
+            return;
+
+        _extraTargets.Add(value);
+        SaveAll();
+    }
+
+    private void BtnDelTarget_Click(object sender, RoutedEventArgs e) =>
+        RemoveSelected(lstExtraTargets, _extraTargets, "Remover esse destino de cópia?");
 
     private void BtnDelUser_Click(object sender, RoutedEventArgs e) => RemoveSelected(lstIgnored, _ignored, "Remover esse item da lista de usuários ignorados?");
 
