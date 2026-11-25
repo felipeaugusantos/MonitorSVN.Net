@@ -38,6 +38,7 @@ com usuário e **senha**. Não precisa instalar .NET nem Java.
    | JENKINS | Usuário / Senha | Suas credenciais. Marque **Lembrar** para guardar a senha, protegida pelo Windows (só o seu usuário consegue ler). |
    | GERAÇÃO | Pasta raiz de geração | A pasta onde as versões são geradas e fechadas, por exemplo `C:\VERSOES_FECHADAS`. É a mesma pasta em que o Jenkins escreve e onde roda o fechamento. |
    | GERAÇÃO | Avisar se um build passar de | Minutos em andamento a partir dos quais o app avisa que está demorando. |
+   | GERAÇÃO | Pasta de controle (vários operadores) | Opcional. Pasta de rede compartilhada entre os operadores. Veja [Vários operadores](#vários-operadores-no-mesmo-servidor). |
    | GERAÇÃO | Fechar a versão automaticamente ao gerar | Opcional. Veja [Fechamento automático](#fechamento-automático). |
    | — | Ignorar commits de | Usuários cujos commits não devem gerar versão (por exemplo, o usuário do próprio Jenkins). |
 
@@ -215,16 +216,14 @@ monitora**; as outras ficam em **somente leitura**.
 
 **Configuração (em cada operador, uma vez):**
 
-1. Feche o Monitor SVN.
-2. Abra `%APPDATA%\MonitorSVN\settings.json` e preencha a pasta de controle compartilhada:
+1. No painel **Monitorar**, seção **GERAÇÃO**, preencha **Pasta de controle (vários operadores)** com a pasta de rede
+   compartilhada, por exemplo `\\citel-fileserve\Modem\_CONTROLE_VARREDURA`. Ao sair do campo, o app salva e avisa que a
+   mudança só vale depois de reabrir (e alerta se não conseguir acessar a pasta agora).
+2. Feche e abra o Monitor SVN de novo.
+3. Confira a **senha do Jenkins** no seu usuário (ela é protegida por usuário do Windows, então cada operador precisa
+   ter a sua).
 
-   ```json
-   "ControlFolder": "\\\\citel-fileserve\\Modem\\_CONTROLE_VARREDURA"
-   ```
-
-   Em JSON, cada barra invertida precisa ser escrita em dobro.
-3. Abra o Monitor SVN de novo. Confira a **senha do Jenkins** no seu usuário (ela é protegida por usuário do Windows,
-   então cada operador precisa ter a sua).
+Para desligar o recurso, apague o conteúdo do campo e reabra o app.
 
 **Como funciona**
 - Quem abrir primeiro passa a **monitorar**. O título da janela fica *Monitor SVN*.
@@ -240,9 +239,11 @@ monitora**; as outras ficam em **somente leitura**.
   aprende vale para todos.
 
 Se a pasta de controle estiver indisponível, a instância fica em somente leitura, em vez de arriscar um build duplicado.
-Deixar `ControlFolder` vazio desliga o recurso (a instância sempre monitora, como antes).
+Deixar o campo **Pasta de controle** vazio desliga o recurso (a instância sempre monitora, como antes).
 
-Destinos de cópia extras, além dos dois padrões, entram em `"ExtraCopyTargets": [ "\\\\servidor\\pasta" ]` no mesmo arquivo.
+Destinos de cópia extras, além dos dois padrões, ainda não têm campo na tela: entram em
+`"ExtraCopyTargets": [ "\\\\servidor\\pasta" ]` no `%APPDATA%\MonitorSVN\settings.json` (feche o app antes de editar; em
+JSON, cada barra invertida é escrita em dobro).
 
 ---
 

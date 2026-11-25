@@ -30,7 +30,7 @@ public partial class MainWindow : Window
     private readonly System.Windows.Forms.NotifyIcon _tray = new();
 
     // abaixo desta altura o painel esquerdo passa a rolar; acima, a lista de diretorios absorve o espaco
-    private const double LeftContentMinHeight = 740;
+    private const double LeftContentMinHeight = 810;
 
     private DateTime? _lastRun;
     private bool _running;
@@ -116,6 +116,7 @@ public partial class MainWindow : Window
         txtJenkinsUrl.Text = _settings.JenkinsUrl;
         txtBuildUrl.Text = _settings.BuildUrlTemplate;
         txtRoot.Text = _settings.GenerationRoot;
+        txtControl.Text = _settings.ControlFolder;
         txtSlowMinutes.Text = _settings.SlowAfterMinutes.ToString();
         chkAutoClose.IsChecked = _settings.AutoClose;
         txtUser.Text = _settings.JenkinsUser;
@@ -129,6 +130,7 @@ public partial class MainWindow : Window
         _settings.JenkinsUrl = txtJenkinsUrl.Text.Trim();
         _settings.BuildUrlTemplate = txtBuildUrl.Text.Trim();
         _settings.GenerationRoot = txtRoot.Text.Trim();
+        _settings.ControlFolder = txtControl.Text.Trim();
         _settings.SlowAfterMinutes = AlertCollector.ParseMinutes(txtSlowMinutes.Text, _settings.SlowAfterMinutes);
         txtSlowMinutes.Text = _settings.SlowAfterMinutes.ToString();   // valor invalido volta ao anterior
         _settings.AutoClose = chkAutoClose.IsChecked == true;
@@ -274,6 +276,25 @@ public partial class MainWindow : Window
 
         MessageDialog.Info(this, "Sobre",
             $"Nome: Monitor SVN{Environment.NewLine}Desenvolvedor: Felipe Santos{Environment.NewLine}Versão: {version}");
+    }
+
+    /// <summary>
+    /// A pasta de controle define o papel de monitor, o padrao de arquivos e a memoria de ZIPs, todos criados ao abrir o
+    /// app: a mudanca so vale na proxima abertura. Avisa isso (e se a pasta nao for encontrada).
+    /// </summary>
+    private void TxtControl_LostFocus(object sender, RoutedEventArgs e)
+    {
+        var typed = txtControl.Text.Trim();
+        if (string.Equals(typed, _role.Folder, StringComparison.Ordinal)) return;
+
+        SaveAll();
+        var text = typed.Length == 0
+            ? "O monitoramento compartilhado será desligado. Feche e abra o Monitor SVN para aplicar."
+            : "A pasta de controle foi salva. Feche e abra o Monitor SVN para aplicar.";
+        if (typed.Length > 0 && !Directory.Exists(typed))
+            text += $"{Environment.NewLine}{Environment.NewLine}Atenção: não foi possível acessar essa pasta agora ({typed}). " +
+                    "Sem acesso a ela, o programa abre em somente leitura.";
+        MessageDialog.Info(this, "Pasta de controle", text);
     }
 
     private void BtnDismissWarn_Click(object sender, RoutedEventArgs e) => warnBanner.Visibility = Visibility.Collapsed;

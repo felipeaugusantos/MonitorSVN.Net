@@ -250,6 +250,9 @@
                     <TextBlock Text="GERAÇÃO" Style="{StaticResource SectionTitle}"/>
                     <TextBlock Text="Pasta raiz de geração" Style="{StaticResource Label}" Margin="0,10,0,4"/>
                     <TextBox x:Name="txtRoot"/>
+                    <TextBlock Text="Pasta de controle (vários operadores)" Style="{StaticResource Label}" Margin="0,10,0,4"/>
+                    <TextBox x:Name="txtControl" LostFocus="TxtControl_LostFocus"
+                             ToolTip="Pasta de rede compartilhada entre os operadores. Só um Monitor SVN por vez monitora; os outros ficam em somente leitura. Também guarda o padrão de arquivos e a memória de ZIPs. Vazio = desligado. Vale depois de reabrir o programa."/>
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                         <TextBlock Text="Avisar se um build passar de" Style="{StaticResource Label}" Margin="0,0,8,0" VerticalAlignment="Center"/>
                         <TextBox x:Name="txtSlowMinutes" Width="60" MaxLength="4" HorizontalContentAlignment="Center"
