@@ -31,6 +31,11 @@ public partial class MainWindow : Window
     private DateTime? _lastRun;
     private bool _running;
 
+    // quem monitora quando ha mais de um operador no servidor (ver MonitorRole)
+    private readonly MonitorRole _role;
+    private DateTime? _sharedStamp;
+    private bool _roleBusy;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -42,6 +47,7 @@ public partial class MainWindow : Window
         _dirs = new ObservableCollection<string>(_settings.Directories);
         _ignored = new ObservableCollection<string>(_settings.IgnoredUsers);
         _service = new MonitorService(_entries);
+        _role = new MonitorRole(_settings.ControlFolder);
 
         ThemeManager.Attach(this);
         ThemeManager.Apply(_settings.Theme switch
@@ -79,7 +85,8 @@ public partial class MainWindow : Window
         Loaded += async (_, _) =>
         {
             if (_store.LoadWarnings.Count > 0) ShowWarning(string.Join(Environment.NewLine, _store.LoadWarnings));
-            if (_dirs.Count > 0) await RunNowAsync();
+            await UpdateRoleAsync();
+            if (_dirs.Count > 0 && _role.IsMonitor) await RunNowAsync();
         };
         StateChanged += (_, _) => { if (WindowState == WindowState.Minimized) HideToTray(); };
         Closing += OnClosing;
@@ -121,6 +128,7 @@ public partial class MainWindow : Window
         {
             _store.Save(_settings);
             _store.SaveEntries(_entries);
+            PublishShared();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -136,6 +144,82 @@ public partial class MainWindow : Window
         {
             AppLog.Warn("Nao foi possivel salvar o historico.", ex);
         }
+        PublishShared();
+    }
+
+    // ---------------------------------------------------------------- papel de monitor (varios operadores)
+
+    /// <summary>O monitor publica o historico na pasta de controle; as outras instancias o mostram e quem assumir continua dele.</summary>
+    private void PublishShared()
+    {
+        if (!_role.Enabled || !_role.IsMonitor) return;
+        try
+        {
+            MonitorSharedState.Save(_role.Folder, _entries, _settings.LastScan);
+            _sharedStamp = MonitorSharedState.LastWriteUtc(_role.Folder);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Warn("Nao foi possivel publicar o historico na pasta de controle.", ex);
+        }
+    }
+
+    /// <summary>Confirma/assume o papel de monitor e mantem o historico em dia. A rede e acessada fora da thread da tela.</summary>
+    private async Task UpdateRoleAsync()
+    {
+        if (!_role.Enabled || _roleBusy) return;
+        _roleBusy = true;
+        try
+        {
+            var was = _role.IsMonitor;
+            await Task.Run(() => _role.Evaluate());
+            if (_role.IsMonitor && !was)
+            {
+                AppLog.Info("Esta instancia passou a monitorar o SVN.");
+                await LoadSharedAsync(adoptLastScan: true, onlyIfChanged: false);
+            }
+            else if (!_role.IsMonitor && was)
+            {
+                AppLog.Warn($"Esta instancia deixou de monitorar. {_role.Status}");
+            }
+            if (!_role.IsMonitor) await LoadSharedAsync(adoptLastScan: false, onlyIfChanged: true);
+            ApplyRoleToWindow();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Falha ao verificar o papel de monitor.", ex);
+        }
+        finally { _roleBusy = false; }
+    }
+
+    private async Task LoadSharedAsync(bool adoptLastScan, bool onlyIfChanged)
+    {
+        var folder = _role.Folder;
+        var stamp = await Task.Run(() => MonitorSharedState.LastWriteUtc(folder));
+        if (onlyIfChanged && stamp == _sharedStamp) return;
+        var state = await Task.Run(() => MonitorSharedState.TryLoad(folder));
+        if (state is null) return;
+
+        _sharedStamp = stamp;
+        _entries.Clear();
+        foreach (var entry in state.Entries) _entries.Add(entry);
+        if (adoptLastScan) _settings.LastScan = state.LastScan;
+        RefreshGrid();
+    }
+
+    private void ApplyRoleToWindow()
+    {
+        var readOnly = _role.Enabled && !_role.IsMonitor;
+        Title = readOnly ? "Monitor SVN — somente leitura" : "Monitor SVN";
+        btnRun.IsEnabled = !readOnly && !_running;
+        if (readOnly) lblInfo.Text = _role.Status;
+    }
+
+    private bool BlockedByRole()
+    {
+        if (_role.IsMonitor) return false;
+        MessageDialog.Info(this, "Monitor SVN", _role.Status.Length > 0 ? _role.Status : "Outra instância está monitorando.");
+        return true;
     }
 
     private void BtnTheme_Click(object sender, RoutedEventArgs e)
@@ -212,11 +296,16 @@ public partial class MainWindow : Window
 
     // ---------------------------------------------------------------- monitoramento
 
-    private async void BtnRun_Click(object sender, RoutedEventArgs e) => await RunNowAsync();
+    private async void BtnRun_Click(object sender, RoutedEventArgs e)
+    {
+        if (BlockedByRole()) return;
+        await RunNowAsync();
+    }
 
     private async Task OnSchedulerTickAsync()
     {
-        if (_running || _dirs.Count == 0) return;
+        await UpdateRoleAsync();
+        if (!_role.IsMonitor || _running || _dirs.Count == 0) return;
 
         // roda de hora em hora (hora cheia), como o app Delphi
         var now = DateTime.Now;
@@ -227,7 +316,7 @@ public partial class MainWindow : Window
 
     private async Task RunNowAsync()
     {
-        if (_running) return;
+        if (_running || !_role.IsMonitor) return;
         _running = true;
         btnRun.IsEnabled = false;
         progress.Visibility = Visibility.Visible;
@@ -269,6 +358,8 @@ public partial class MainWindow : Window
 
     private async void RefreshStatus()
     {
+        // quem nao monitora nao consome concluido.txt/erro.txt nem avisa: o monitor faz isso (evita aviso em dobro)
+        if (!_role.IsMonitor) return;
         var finished = _service.RefreshStatus(_settings);
         RefreshGrid();
         SaveEntriesSafe();
@@ -459,6 +550,7 @@ public partial class MainWindow : Window
     private async void MnuReprocess_Click(object sender, RoutedEventArgs e)
     {
         if (grid.SelectedItem is not LogEntry entry) return;
+        if (BlockedByRole()) return;
         if (_running)
         {
             MessageDialog.Info(this, "Monitor SVN", "Há uma verificação em andamento. Aguarde ela terminar para reprocessar.");
@@ -608,6 +700,7 @@ public partial class MainWindow : Window
     {
         AppLog.Info("Fechando a janela principal.");
         SaveAll();
+        _role.Release();
         _tray.Visible = false;
         _tray.Dispose();
     }

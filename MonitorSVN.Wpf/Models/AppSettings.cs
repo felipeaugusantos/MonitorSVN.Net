@@ -29,6 +29,12 @@ public sealed class AppSettings
     public bool RememberCredentials { get; set; } = true;
     public string GenerationRoot { get; set; } = @"C:\MonitorSVN";
 
+    /// <summary>
+    /// Pasta de rede compartilhada entre os operadores (ex.: \\citel-fileserve\Modem\_CONTROLE_VARREDURA). So uma
+    /// instancia por vez monitora o SVN/Jenkins; as outras ficam em somente leitura. Vazio = desligado.
+    /// </summary>
+    public string ControlFolder { get; set; } = "";
+
     /// <summary>"Light", "Dark" ou vazio (segue o tema do Windows).</summary>
     public string Theme { get; set; } = "";
 
