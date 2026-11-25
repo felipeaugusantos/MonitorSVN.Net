@@ -29,7 +29,8 @@ public static class AlertTemplate
     {
         var e = alert.Entry;
         var isError = alert.Kind == AlertKind.Error;
-        var elapsed = isError
+        var isSlow = alert.Kind == AlertKind.Slow;
+        var elapsed = !isSlow
             ? (e.StartedAt is { } s && e.FinishedAt is { } f && f >= s ? f - s : (TimeSpan?)null)
             : (e.StartedAt is { } st ? now - st : (TimeSpan?)null);
         var tempo = elapsed is { } t ? SummaryCalculator.Format(TimeSpan.FromMinutes((int)t.TotalMinutes)) : "";
@@ -39,11 +40,13 @@ public static class AlertTemplate
             ["versao"] = e.Version,
             ["revisao"] = e.Revision,
             ["autor"] = e.Author,
-            ["tipo"] = isError ? "erro" : "demorando",
-            ["situacao"] = isError ? "terminou com erro" : "está em andamento" + (tempo.Length > 0 ? " há " + tempo : ""),
+            ["tipo"] = isError ? "erro" : isSlow ? "demorando" : "gerada",
+            ["situacao"] = isError ? "terminou com erro"
+                : isSlow ? "está em andamento" + (tempo.Length > 0 ? " há " + tempo : "")
+                : "foi gerada com sucesso",
             ["responsavel"] = isError ? (e.Suspect ?? "") : "",
             ["tempo"] = tempo,
-            ["hora"] = (isError ? e.FinishedAt ?? now : now).ToString("HH:mm"),
+            ["hora"] = (isSlow ? now : e.FinishedAt ?? now).ToString("HH:mm"),
             ["maquina"] = Environment.MachineName,
             ["link"] = JenkinsClient.JobUrl(settings.JenkinsUrl, e.Version)?.ToString() ?? ""
         };

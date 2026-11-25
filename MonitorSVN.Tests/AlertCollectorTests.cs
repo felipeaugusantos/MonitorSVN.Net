@@ -96,4 +96,50 @@ public class AlertCollectorTests
     [InlineData(null, 45, 45)]
     public void Minutes_field_is_validated(string? text, int fallback, int expected) =>
         Assert.Equal(expected, AlertCollector.ParseMinutes(text, fallback));
+
+    [Fact]
+    public void Success_alerts_once_only_when_enabled_and_recent()
+    {
+        var fresh = E(BuildStatus.Generated, Now.AddMinutes(-30), Now.AddMinutes(-5), "ok");
+
+        var alert = Assert.Single(AlertCollector.Collect(new[] { fresh }, Now, notifySuccess: true));
+        Assert.Equal(AlertKind.Success, alert.Kind);
+        Assert.Contains("ok foi gerada com sucesso", alert.Message);
+        Assert.Empty(AlertCollector.Collect(new[] { fresh }, Now, notifySuccess: true));   // so uma vez
+    }
+
+    [Fact]
+    public void Success_is_marked_even_when_disabled_so_turning_it_on_later_does_not_flood()
+    {
+        var e = E(BuildStatus.Generated, Now.AddMinutes(-30), Now.AddMinutes(-5));
+
+        Assert.Empty(AlertCollector.Collect(new[] { e }, Now));            // desligado
+        Assert.True(e.AlertedDone);
+        Assert.Empty(AlertCollector.Collect(new[] { e }, Now, notifySuccess: true));   // ligado depois: nao avisa o passado
+    }
+
+    [Fact]
+    public void Old_or_unfinished_generated_rows_do_not_alert()
+    {
+        var noEnd = E(BuildStatus.Generated);
+        var old = E(BuildStatus.Generated, finished: Now - AlertCollector.ErrorWindow - TimeSpan.FromMinutes(1));
+
+        Assert.Empty(AlertCollector.Collect(new[] { noEnd, old }, Now, notifySuccess: true));
+    }
+
+    [Fact]
+    public void Titles_cover_success_alone_and_mixed()
+    {
+        var rows = new[]
+        {
+            E(BuildStatus.Generated, finished: Now, version: "a"), E(BuildStatus.Generated, finished: Now, version: "b"),
+            E(BuildStatus.Error, finished: Now, version: "c")
+        };
+        var all = AlertCollector.Collect(rows, Now, notifySuccess: true);
+
+        Assert.Equal("Monitor SVN: 1 erro(s), 2 gerada(s)", AlertCollector.Title(all));
+        var good = all.Where(a => a.Kind == AlertKind.Success).ToList();
+        Assert.Equal("Monitor SVN: 2 versões geradas", AlertCollector.Title(good));
+        Assert.Equal("Monitor SVN: versão gerada", AlertCollector.Title(good.Take(1).ToList()));
+    }
 }

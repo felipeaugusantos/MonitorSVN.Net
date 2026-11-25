@@ -98,4 +98,18 @@ public class AlertTemplateTests
         Assert.DoesNotContain("{", text);
         Assert.Contains("felipe.santos", text);
     }
+
+    [Fact]
+    public void Success_has_its_own_wording_and_build_duration()
+    {
+        var alert = new BuildAlert(AlertKind.Success, new LogEntry
+        {
+            Version = "v9", Revision = "5", Author = "bia", Status = BuildStatus.Generated,
+            StartedAt = Now.AddMinutes(-30), FinishedAt = Now.AddMinutes(-4)
+        }, "");
+
+        Assert.Equal("v9 gerada: foi gerada com sucesso em 26 min às 14:56",
+            AlertTemplate.Line("{versao} {tipo}: {situacao} em {tempo} às {hora}", alert, Settings, Now));
+        Assert.Equal("v9 foi gerada com sucesso (Rev 5, bia).", AlertTemplate.Line(null, alert, Settings, Now));
+    }
 }

@@ -23,6 +23,7 @@ public sealed class EmailWindow : Window
     private readonly PasswordBox _webhook = new();
     private readonly TextBox _chatTemplate = NewTemplateBox();
     private readonly TextBlock _chatPreview = new();
+    private readonly CheckBox _notifySuccess = new() { Content = "Avisar também quando uma versão for gerada com sucesso (balão, e-mail e Chat)", Margin = new Thickness(0, 14, 0, 0) };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 10, 0, 0) };
     private readonly Button _test = new() { Content = "Testar e-mail", Width = 110, Height = 34, Margin = new Thickness(0, 0, 8, 0) };
     private readonly Button _testChat = new() { Content = "Testar Chat", Width = 110, Height = 34, Margin = new Thickness(0, 0, 8, 0) };
@@ -49,6 +50,7 @@ public sealed class EmailWindow : Window
         SetResourceReference(ForegroundProperty, "TextBrush");
         ThemeManager.Attach(this);
 
+        _notifySuccess.IsChecked = settings.NotifySuccess;
         _enabled.IsChecked = settings.EmailEnabled;
         _host.Text = settings.SmtpHost;
         _port.Text = settings.SmtpPort.ToString();
@@ -122,6 +124,7 @@ public sealed class EmailWindow : Window
         panel.Children.Add(tabs);
         panel.Children.Add(mail);
         panel.Children.Add(chat);
+        panel.Children.Add(_notifySuccess);
         var note = new TextBlock
         {
             TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 10, 0, 0),
@@ -217,6 +220,7 @@ public sealed class EmailWindow : Window
             EmailFrom = _from.Text.Trim(), EmailTo = _to.Text.Trim(), EmailLineTemplate = _emailTemplate.Text.Trim(),
             ChatEnabled = _chatEnabled.IsChecked == true, ChatWebhook = _webhook.Password.Trim(),
             ChatLineTemplate = _chatTemplate.Text.Trim(),
+            NotifySuccess = _notifySuccess.IsChecked == true,
             JenkinsUrl = _settings.JenkinsUrl
         };
     }
@@ -279,6 +283,7 @@ public sealed class EmailWindow : Window
         _settings.SmtpPassword = d.SmtpPassword;
         _settings.EmailFrom = d.EmailFrom;
         _settings.EmailTo = d.EmailTo;
+        _settings.NotifySuccess = d.NotifySuccess;
         _settings.ChatEnabled = d.ChatEnabled;
         _settings.ChatWebhook = d.ChatWebhook;
         // igual ao padrao = guarda vazio, para acompanhar melhorias do padrao no futuro

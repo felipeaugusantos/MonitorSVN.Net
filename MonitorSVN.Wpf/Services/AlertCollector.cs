@@ -2,7 +2,7 @@ using MonitorSVN.Models;
 
 namespace MonitorSVN.Services;
 
-public enum AlertKind { Error, Slow }
+public enum AlertKind { Error, Slow, Success }
 
 public sealed record BuildAlert(AlertKind Kind, LogEntry Entry, string Message);
 
@@ -23,7 +23,7 @@ public static class AlertCollector
     public static readonly TimeSpan ErrorWindow = TimeSpan.FromHours(6);
 
     /// <summary>Devolve os avisos novos e marca as linhas (Alerted*), que sao gravadas junto do historico.</summary>
-    public static List<BuildAlert> Collect(IEnumerable<LogEntry> entries, DateTime now, TimeSpan? slowAfter = null)
+    public static List<BuildAlert> Collect(IEnumerable<LogEntry> entries, DateTime now, TimeSpan? slowAfter = null, bool notifySuccess = false)
     {
         var limit = slowAfter ?? SlowAfter;
         var alerts = new List<BuildAlert>();
@@ -35,6 +35,13 @@ public static class AlertCollector
                 if (e.FinishedAt is { } done && now - done <= ErrorWindow)
                     alerts.Add(new BuildAlert(AlertKind.Error, e, $"{e.Version} terminou com erro (Rev {e.Revision}, {e.Author})."));
                 e.AlertedError = true;
+            }
+            else if (e.Status == BuildStatus.Generated && !e.AlertedDone)
+            {
+                // marca sempre, mesmo com o aviso desligado: ligar depois nao dispara avisos de versoes antigas
+                if (notifySuccess && e.FinishedAt is { } done && now - done <= ErrorWindow)
+                    alerts.Add(new BuildAlert(AlertKind.Success, e, $"{e.Version} foi gerada com sucesso (Rev {e.Revision}, {e.Author})."));
+                e.AlertedDone = true;
             }
             else if (e.Status == BuildStatus.InProgress && !e.AlertedSlow && e.StartedAt is { } started && now - started >= limit)
             {
@@ -58,9 +65,20 @@ public static class AlertCollector
     public static string Title(IReadOnlyList<BuildAlert> alerts)
     {
         var errors = alerts.Count(a => a.Kind == AlertKind.Error);
-        var slow = alerts.Count - errors;
-        if (errors > 0 && slow > 0) return $"Monitor SVN: {errors} erro(s) e {slow} build(s) demorando";
-        return errors > 0 ? (errors == 1 ? "Monitor SVN: versão com erro" : $"Monitor SVN: {errors} versões com erro")
-                          : (slow == 1 ? "Monitor SVN: build demorando" : $"Monitor SVN: {slow} builds demorando");
+        var slow = alerts.Count(a => a.Kind == AlertKind.Slow);
+        var ok = alerts.Count(a => a.Kind == AlertKind.Success);
+
+        if (errors > 0 && slow > 0 && ok == 0) return $"Monitor SVN: {errors} erro(s) e {slow} build(s) demorando";
+        if (errors + slow > 0 && ok > 0)
+        {
+            var parts = new List<string>();
+            if (errors > 0) parts.Add($"{errors} erro(s)");
+            if (slow > 0) parts.Add($"{slow} demorando");
+            parts.Add($"{ok} gerada(s)");
+            return "Monitor SVN: " + string.Join(", ", parts);
+        }
+        if (errors > 0) return errors == 1 ? "Monitor SVN: versão com erro" : $"Monitor SVN: {errors} versões com erro";
+        if (slow > 0) return slow == 1 ? "Monitor SVN: build demorando" : $"Monitor SVN: {slow} builds demorando";
+        return ok == 1 ? "Monitor SVN: versão gerada" : $"Monitor SVN: {ok} versões geradas";
     }
 }

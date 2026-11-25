@@ -183,7 +183,7 @@ public sealed class MonitorService
 
             entry.ErrorDetail = null;
             entry.StartedAt = DateTime.Now;
-            entry.AlertedError = entry.AlertedSlow = false;   // novo disparo: novos avisos valem
+            entry.AlertedError = entry.AlertedSlow = entry.AlertedDone = false;   // novo disparo: novos avisos valem
             entry.Suspect = null;
             entry.FinishedAt = null;   // reprocessado: o término anterior deixa de valer
             entry.Status = BuildStatus.InProgress;

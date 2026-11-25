@@ -300,7 +300,7 @@ public partial class MainWindow : Window
     /// <summary>Avisa (balão da bandeja + faixa na janela) sobre erros novos e builds demorando. Cada linha avisa uma vez.</summary>
     private void NotifyAlerts()
     {
-        var alerts = AlertCollector.Collect(_entries, DateTime.Now, TimeSpan.FromMinutes(_settings.SlowAfterMinutes));
+        var alerts = AlertCollector.Collect(_entries, DateTime.Now, TimeSpan.FromMinutes(_settings.SlowAfterMinutes), _settings.NotifySuccess);
         if (alerts.Count == 0) return;
 
         foreach (var a in alerts) AppLog.Warn("Aviso: " + a.Message);
@@ -310,11 +310,13 @@ public partial class MainWindow : Window
         try
         {
             _tray.Visible = true;   // o balão precisa do ícone; ele some de novo se a janela estiver aberta
-            _tray.ShowBalloonTip(15000, title, text, System.Windows.Forms.ToolTipIcon.Warning);
+            var onlyGood = alerts.All(a => a.Kind == AlertKind.Success);
+            _tray.ShowBalloonTip(15000, title, text,
+                onlyGood ? System.Windows.Forms.ToolTipIcon.Info : System.Windows.Forms.ToolTipIcon.Warning);
         }
         catch (Exception ex) { AppLog.Warn("Nao foi possivel mostrar o aviso na bandeja.", ex); }
 
-        if (IsVisible) ShowWarning(title + Environment.NewLine + text);
+        if (IsVisible && alerts.Any(a => a.Kind != AlertKind.Success)) ShowWarning(title + Environment.NewLine + text);   // boa noticia nao vira faixa de alerta
 
         if (_settings.EmailEnabled) _ = SendEmailAsync(alerts);
         if (_settings.ChatEnabled) _ = SendChatAsync(alerts);

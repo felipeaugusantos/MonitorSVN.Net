@@ -31,6 +31,7 @@ public sealed class LogEntry : INotifyPropertyChanged
     /// <summary>O aviso de erro / de build demorado desta linha já foi dado (não repete ao reabrir o app).</summary>
     public bool AlertedError { get; set; }
     public bool AlertedSlow { get; set; }
+    public bool AlertedDone { get; set; }
 
     /// <summary>
     /// Data (UTC) de um erro.txt / concluido.txt velho que nao pode ser apagado (arquivo em uso) antes do disparo.
