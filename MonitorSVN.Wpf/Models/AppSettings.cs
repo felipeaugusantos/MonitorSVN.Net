@@ -53,6 +53,10 @@ public sealed class AppSettings
     /// <summary>O endereco do webhook equivale a uma senha: so vai para o arquivo protegido.</summary>
     [JsonIgnore] public string ChatWebhook { get; set; } = "";
 
+    /// <summary>Modelo da linha de cada aviso (ver AlertTemplate). Vazio = modelo padrao.</summary>
+    public string EmailLineTemplate { get; set; } = "";
+    public string ChatLineTemplate { get; set; } = "";
+
     /// <summary>Inicio da ultima varredura em que todos os diretorios foram lidos. A proxima consulta o SVN a partir desse dia.</summary>
     public DateTime? LastScan { get; set; }
 

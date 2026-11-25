@@ -27,11 +27,11 @@ public static class EmailNotifier
     }
 
     /// <summary>Assunto e corpo: todos os avisos (o balao mostra so 3).</summary>
-    public static (string Subject, string Body) Compose(IReadOnlyList<BuildAlert> alerts)
+    public static (string Subject, string Body) Compose(IReadOnlyList<BuildAlert> alerts, AppSettings settings, DateTime now)
     {
-        var lines = alerts.Select(a => "• " + a.Message);
+        var lines = alerts.Select(a => "• " + AlertTemplate.Line(settings.EmailLineTemplate, a, settings, now));
         var body = string.Join(Environment.NewLine, lines) + Environment.NewLine + Environment.NewLine +
-                   $"Enviado pelo Monitor SVN em {DateTime.Now:dd/MM/yyyy HH:mm} ({Environment.MachineName}).";
+                   $"Enviado pelo Monitor SVN em {now:dd/MM/yyyy HH:mm} ({Environment.MachineName}).";
         return (AlertCollector.Title(alerts), body);
     }
 

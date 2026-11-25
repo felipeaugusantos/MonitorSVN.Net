@@ -89,7 +89,7 @@ public class ChatNotifierTests
             Timestamp = now.AddHours(-2), FinishedAt = now
         }).ToList();
 
-        var text = ChatNotifier.Compose(AlertCollector.Collect(rows, now));
+        var text = ChatNotifier.Compose(AlertCollector.Collect(rows, now), new AppSettings(), now);
 
         Assert.StartsWith("*Monitor SVN: 4 versões com erro*", text);
         for (var i = 0; i < 4; i++) Assert.Contains("v" + i, text);

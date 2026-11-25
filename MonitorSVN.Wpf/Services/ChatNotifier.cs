@@ -21,10 +21,10 @@ public static class ChatNotifier
         : $"O endereço deve começar com https://{WebhookHost}/ (copie o webhook do espaço no Chat).";
 
     /// <summary>Corpo da mensagem: titulo em negrito (*texto* no Chat) e uma linha por aviso.</summary>
-    public static string Compose(IReadOnlyList<BuildAlert> alerts)
+    public static string Compose(IReadOnlyList<BuildAlert> alerts, AppSettings settings, DateTime now)
     {
-        var (subject, body) = EmailNotifier.Compose(alerts);
-        return "*" + subject + "*" + Environment.NewLine + body;
+        var lines = alerts.Select(a => "• " + AlertTemplate.Line(settings.ChatLineTemplate, a, settings, now));
+        return "*" + AlertCollector.Title(alerts) + "*" + Environment.NewLine + string.Join(Environment.NewLine, lines);
     }
 
     public static async Task SendAsync(AppSettings s, string text, CancellationToken ct = default, HttpMessageHandler? handler = null)

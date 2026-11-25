@@ -72,7 +72,7 @@ public class EmailNotifierTests
         }).ToList();
         var alerts = AlertCollector.Collect(rows, now);
 
-        var (subject, body) = EmailNotifier.Compose(alerts);
+        var (subject, body) = EmailNotifier.Compose(alerts, new AppSettings(), now);
 
         Assert.Equal("Monitor SVN: 5 versões com erro", subject);
         for (var i = 0; i < 5; i++) Assert.Contains("v" + i, body);   // o balao mostra so 3; o e-mail mostra todas

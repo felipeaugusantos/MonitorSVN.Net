@@ -271,12 +271,21 @@ public partial class MainWindow : Window
     {
         var finished = _service.RefreshStatus(_settings);
         RefreshGrid();
-        NotifyAlerts();
         SaveEntriesSafe();
 
         // um build terminou: commits da mesma versao que estavam esperando por ele ja podem ser disparados
         if (finished && !_running) await TriggerWaitingAsync();
 
+        // o provavel responsavel entra no aviso: espera a pesquisa no SVN, mas no maximo 15 s
+        var resolving = ResolveSuspectsOnceAsync();
+        await Task.WhenAny(resolving, Task.Delay(TimeSpan.FromSeconds(15)));
+        NotifyAlerts();
+        SaveEntriesSafe();
+        await resolving;
+    }
+
+    private async Task ResolveSuspectsOnceAsync()
+    {
         if (_resolvingSuspects) return;
         _resolvingSuspects = true;
         try
@@ -315,7 +324,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            await ChatNotifier.SendAsync(_settings, ChatNotifier.Compose(alerts));
+            await ChatNotifier.SendAsync(_settings, ChatNotifier.Compose(alerts, _settings, DateTime.Now));
             AppLog.Info("Aviso enviado ao Google Chat.");
         }
         catch (Exception ex)
@@ -330,7 +339,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var (subject, body) = EmailNotifier.Compose(alerts);
+            var (subject, body) = EmailNotifier.Compose(alerts, _settings, DateTime.Now);
             await EmailNotifier.SendAsync(_settings, subject, body);
             AppLog.Info("Aviso enviado por e-mail: " + subject);
         }
