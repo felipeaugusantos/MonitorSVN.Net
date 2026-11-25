@@ -43,6 +43,16 @@ public sealed class LogEntry : INotifyPropertyChanged
     /// <summary>Quando o build foi disparado no Jenkins. Nulo se ainda não foi disparado.</summary>
     public DateTime? StartedAt { get; set; }
 
+    private string _closingText = "";
+
+    /// <summary>Situacao do fechamento da versao (coluna Fechamento). Nao e gravada: vem do ClosingService.</summary>
+    [JsonIgnore]
+    public string ClosingText
+    {
+        get => _closingText;
+        set { if (_closingText == value) return; _closingText = value; OnChanged(); }
+    }
+
     [JsonIgnore] public string StartedText => StartedAt is { } t ? t.ToString("HH:mm") : "—";
 
     /// <summary>Quando a geração terminou (Gerado ou Erro). Nulo enquanto não terminou.</summary>

@@ -20,6 +20,8 @@ public partial class MainWindow : Window
     private readonly VersionGrouping _grouping = new();
     private LogSearch _search = new(null);
     private readonly MonitorService _service;
+    private readonly ClosingService _closing = new(AppLog.Folder);
+    private readonly DispatcherTimer _closingTimer = new() { Interval = TimeSpan.FromSeconds(1) };
 
     private readonly DispatcherTimer _scheduler = new() { Interval = TimeSpan.FromSeconds(30) };
     private readonly DispatcherTimer _statusTimer = new() { Interval = TimeSpan.FromMinutes(2) };
@@ -81,6 +83,9 @@ public partial class MainWindow : Window
         _statusTimer.Tick += (_, _) => RefreshStatus();
         _scheduler.Start();
         _statusTimer.Start();
+        _closing.Finished += job => Dispatcher.BeginInvoke(() => OnClosingFinished(job));
+        _closingTimer.Tick += (_, _) => RefreshClosingTexts();
+        _closingTimer.Start();
 
         Loaded += async (_, _) =>
         {
@@ -471,6 +476,80 @@ public partial class MainWindow : Window
         }
     }
 
+    // ---------------------------------------------------------------- fechamento da versao (BAT)
+
+    /// <summary>Pasta onde a versao gerada fica: a mesma que o Jenkins escreve e onde roda o fechamento.</summary>
+    private string ProjectFolder(LogEntry entry) => Path.Combine(_settings.GenerationRoot, entry.Version);
+
+    private void RefreshClosingTexts()
+    {
+        foreach (var entry in _entries)
+        {
+            var text = _closing.ProgressText(ProjectFolder(entry));
+            if (entry.ClosingText != text) entry.ClosingText = text;
+        }
+    }
+
+    private void MnuClose_Click(object sender, RoutedEventArgs e)
+    {
+        if (grid.SelectedItem is not LogEntry entry) return;
+        if (entry.Status != BuildStatus.Generated)
+        {
+            MessageDialog.Info(this, "Monitor SVN", "O fechamento só pode ser feito em versões com status Gerado.");
+            return;
+        }
+
+        CollectSettings();
+        var folder = ProjectFolder(entry);
+        var kind = ClosingService.IsCloud(entry.Version) ? "Cloud" : "Local";
+        if (!MessageDialog.Confirm(this, "Atenção",
+                $"Iniciar o Fechamento {kind} da versão {entry.Version}?{Environment.NewLine}{Environment.NewLine}" +
+                $"Pasta: {folder}{Environment.NewLine}O BAT compacta os arquivos da pasta e remove os originais."))
+            return;
+
+        var reason = _closing.Enqueue(folder);
+        if (reason is not null)
+        {
+            MessageDialog.Info(this, "Fechamento não iniciado", reason);
+            return;
+        }
+        RefreshClosingTexts();
+    }
+
+    private void MnuCancelClosing_Click(object sender, RoutedEventArgs e)
+    {
+        if (grid.SelectedItem is not LogEntry entry) return;
+        var folder = ProjectFolder(entry);
+        if (!_closing.IsActive(folder))
+        {
+            MessageDialog.Info(this, "Monitor SVN", "Não há fechamento em andamento ou na fila para esta versão.");
+            return;
+        }
+        if (!MessageDialog.Confirm(this, "Atenção",
+                "Cancelar o fechamento? Os arquivos que ainda não foram compactados ficam na pasta e a versão " +
+                "precisará ser fechada de novo."))
+            return;
+        _closing.Cancel(folder);
+    }
+
+    private void OnClosingFinished(ClosingJob job)
+    {
+        RefreshClosingTexts();
+        if (job.State == ClosingState.Cancelled) return;
+
+        var ok = job.State == ClosingState.Done;
+        var title = $"{job.Title}: {job.Name}";
+        var text = ok ? "Fechamento concluído." : "Fechamento com erro: " + job.Message;
+        try
+        {
+            _tray.Visible = true;
+            _tray.ShowBalloonTip(10000, title, text,
+                ok ? System.Windows.Forms.ToolTipIcon.Info : System.Windows.Forms.ToolTipIcon.Warning);
+        }
+        catch (Exception ex) { AppLog.Warn("Nao foi possivel mostrar o aviso do fechamento na bandeja.", ex); }
+        if (!ok && IsVisible) ShowWarning(title + Environment.NewLine + text);
+    }
+
     // ---------------------------------------------------------------- menu da grade: Jenkins e copiar
 
     private static T? FindParent<T>(DependencyObject? d) where T : DependencyObject
@@ -698,9 +777,22 @@ public partial class MainWindow : Window
 
     private void OnClosing(object? sender, CancelEventArgs e)
     {
+        if (_closing.ActiveCount > 0)
+        {
+            if (!MessageDialog.Confirm(this, "Atenção",
+                    $"Há {_closing.ActiveCount} fechamento(s) em andamento ou na fila. Sair cancela todos, e as versões " +
+                    "precisarão ser fechadas de novo. Deseja sair mesmo assim?"))
+            {
+                e.Cancel = true;
+                return;
+            }
+            _closing.CancelAll();
+            Thread.Sleep(1500);   // tempo de o BAT e seus filhos serem encerrados e as travas soltas
+        }
         AppLog.Info("Fechando a janela principal.");
         SaveAll();
         _role.Release();
+        _closingTimer.Stop();
         _tray.Visible = false;
         _tray.Dispose();
     }

@@ -320,6 +320,9 @@
                                 <MenuItem Header="Abrir no Jenkins" Click="MnuOpenJenkins_Click"/>
                                 <MenuItem Header="Copiar revisão" Click="MnuCopyRev_Click"/>
                                 <Separator/>
+                                <MenuItem Header="Fechar versão (Local/Cloud)" Click="MnuClose_Click"/>
+                                <MenuItem Header="Cancelar fechamento" Click="MnuCancelClosing_Click"/>
+                                <Separator/>
                                 <MenuItem Header="Reprocessar" Click="MnuReprocess_Click"/>
                                 <MenuItem Header="Excluir (somente com erro)" Click="MnuDelete_Click"/>
                             </ContextMenu>
@@ -370,6 +373,9 @@
                             <DataGridTextColumn Header="Término" Binding="{Binding FinishedText}"
                                                 HeaderStyle="{StaticResource HeaderCenter}"
                                                 ElementStyle="{StaticResource CellCenter}" Width="70"/>
+                            <DataGridTextColumn Header="Fechamento" Binding="{Binding ClosingText}"
+                                                HeaderStyle="{StaticResource HeaderCenter}"
+                                                ElementStyle="{StaticResource CellCenter}" Width="130"/>
                             <DataGridTemplateColumn Header="Status" Width="116" HeaderStyle="{StaticResource HeaderCenter}"
                                                     CellTemplate="{StaticResource StatusTemplate}"/>
                         </DataGrid.Columns>
