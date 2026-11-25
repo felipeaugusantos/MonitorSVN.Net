@@ -128,7 +128,8 @@ public static class CopyRules
     public sealed record Check(string Label, bool Ok, string Detail);
 
     /// <summary>Validacoes de seguranca mostradas antes de copiar. Todas precisam estar OK para liberar o botao.</summary>
-    public static List<Check> SafetyChecks(string projectPath, string destination, IReadOnlyCollection<string> targetRoots, bool cloud)
+    public static List<Check> SafetyChecks(string projectPath, string destination, IReadOnlyCollection<string> targetRoots, bool cloud,
+        ProjectAnalyzer? analyzer = null)
     {
         var name = Path.GetFileName(projectPath.TrimEnd('\\', '/'));
         var checks = new List<Check>();
@@ -143,6 +144,13 @@ public static class CopyRules
         Add("Fechamento concluído", pending.Count == 0 && zipCount > 0,
             pending.Count > 0 ? $"{pending.Count} arquivo(s) ainda nao compactado(s): {string.Join(", ", pending.Take(3))}"
             : zipCount == 0 ? "nenhum ZIP na pasta" : $"{zipCount} ZIP(s)");
+
+        if (analyzer is not null && Directory.Exists(projectPath))
+        {
+            // o "Status OK": todos os arquivos do padrao da versao presentes e com a versao certa
+            var analysis = analyzer.Analyze(projectPath);
+            Add("Status do projeto", analysis.Ok, analysis.Status);
+        }
 
         var expectedNames = DestinationNames(name, cloud);
         var destName = Path.GetFileName(destination.TrimEnd('\\', '/'));

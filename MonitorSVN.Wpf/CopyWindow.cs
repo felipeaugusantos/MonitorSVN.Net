@@ -21,6 +21,7 @@ public sealed class CopyWindow : Window
     private readonly string _title;
     private readonly List<string> _roots;
     private readonly CancellationTokenSource _cts = new();
+    private readonly ProjectAnalyzer? _analyzer;
 
     private readonly TextBlock _info = new() { TextWrapping = TextWrapping.Wrap };
     private readonly ProgressBar _bar = new() { Height = 8, Margin = new Thickness(0, 12, 0, 0), IsIndeterminate = true };
@@ -33,8 +34,9 @@ public sealed class CopyWindow : Window
     private bool _finished;
     private int _refreshVersion;
 
-    public CopyWindow(Window owner, string projectPath, bool cloud, IEnumerable<string> targetRoots)
+    public CopyWindow(Window owner, string projectPath, bool cloud, IEnumerable<string> targetRoots, ProjectAnalyzer? analyzer = null)
     {
+        _analyzer = analyzer;
         _project = projectPath.TrimEnd('\\', '/');
         _name = System.IO.Path.GetFileName(_project);
         _cloud = cloud;
@@ -147,7 +149,7 @@ public sealed class CopyWindow : Window
     private Option? Selected => _list.SelectedItem as Option;
 
     private async Task<List<CopyRules.Check>> ComputeChecksAsync(Option option) =>
-        await Task.Run(() => CopyRules.SafetyChecks(_project, option.Path, _roots, _cloud));
+        await Task.Run(() => CopyRules.SafetyChecks(_project, option.Path, _roots, _cloud, _analyzer));
 
     private async Task RefreshChecksAsync()
     {

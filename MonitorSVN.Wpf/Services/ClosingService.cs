@@ -38,12 +38,16 @@ public sealed class ClosingService
     private readonly SemaphoreSlim _slots;
     private readonly string _logFolder;
     private readonly TimeSpan _timeout;
+    private readonly ProjectAnalyzer? _analyzer;
 
     /// <summary>Disparado (em thread de fundo) quando um fechamento termina, com qualquer resultado.</summary>
     public event Action<ClosingJob>? Finished;
 
-    public ClosingService(string logFolder, int maxConcurrent = DefaultMaxConcurrent, TimeSpan? timeout = null)
+    /// <param name="analyzer">Se informado, aprende o padrao de arquivos da versao antes de rodar o BAT.</param>
+    public ClosingService(string logFolder, int maxConcurrent = DefaultMaxConcurrent, TimeSpan? timeout = null,
+        ProjectAnalyzer? analyzer = null)
     {
+        _analyzer = analyzer;
         _logFolder = logFolder;
         _slots = new SemaphoreSlim(maxConcurrent);
         _timeout = timeout ?? DefaultTimeout;
@@ -203,6 +207,8 @@ public sealed class ClosingService
         job.LogPath = Path.Combine(_logFolder, "fechamentos_bat", $"{job.Name}_{DateTime.Now:yyyyMMdd_HHmmss}.log");
         AppLog.Info($"{job.Title} iniciado: {job.Name}; log={job.LogPath}");
 
+        LearnPattern(job);
+
         Dictionary<string, long> initial;
         try { initial = ClosingRunner.PendingFileSizes(job.ProjectPath); }
         catch (IOException) { initial = new(); }
@@ -223,6 +229,23 @@ public sealed class ClosingService
             return;
         }
         Complete(job, ClosingState.Done, detail);
+    }
+
+    /// <summary>Grava o padrao de arquivos desta versao (os .exe/.dll ainda estao na pasta). Nunca impede o fechamento.</summary>
+    private void LearnPattern(ClosingJob job)
+    {
+        if (_analyzer is null) return;
+        try
+        {
+            var key = _analyzer.Learn(job.ProjectPath);
+            AppLog.Info(key is not null
+                ? $"{job.Title}: padrao de arquivos gravado ({job.Name}); chave={key}"
+                : $"{job.Title}: padrao de arquivos nao gravado ({job.Name}): nenhum arquivo com a versao esperada.");
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"{job.Title}: erro ao gravar o padrao de arquivos ({job.Name}).", ex);
+        }
     }
 
     private static void Complete(ClosingJob job, ClosingState state, string message, Exception? ex = null)

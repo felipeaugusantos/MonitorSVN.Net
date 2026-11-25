@@ -20,7 +20,8 @@ public partial class MainWindow : Window
     private readonly VersionGrouping _grouping = new();
     private LogSearch _search = new(null);
     private readonly MonitorService _service;
-    private readonly ClosingService _closing = new(AppLog.Folder);
+    private readonly ProjectAnalyzer _analyzer;
+    private readonly ClosingService _closing;
     private readonly DispatcherTimer _closingTimer = new() { Interval = TimeSpan.FromSeconds(1) };
 
     private readonly DispatcherTimer _scheduler = new() { Interval = TimeSpan.FromSeconds(30) };
@@ -50,6 +51,14 @@ public partial class MainWindow : Window
         _ignored = new ObservableCollection<string>(_settings.IgnoredUsers);
         _service = new MonitorService(_entries);
         _role = new MonitorRole(_settings.ControlFolder);
+
+        // padrao de arquivos de cada versao: na pasta de controle (compartilhado entre operadores) quando houver
+        var patternFolder = _role.Enabled && Directory.Exists(_role.Folder) ? _role.Folder : ProjectPatternStore.LocalFolder();
+        var patterns = new ProjectPatternStore(patternFolder);
+        patterns.SeedFrom(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "VarreduraSistema", ProjectPatternStore.FileName));   // aproveita o que o VarreduraSistema ja aprendeu
+        _analyzer = new ProjectAnalyzer(patterns);
+        _closing = new ClosingService(AppLog.Folder, analyzer: _analyzer);
 
         ThemeManager.Attach(this);
         ThemeManager.Apply(_settings.Theme switch
@@ -605,7 +614,7 @@ public partial class MainWindow : Window
 
         var roots = CopyRules.DefaultTargetRoots.Concat(_settings.ExtraCopyTargets)
             .Where(r => !string.IsNullOrWhiteSpace(r)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        new CopyWindow(this, folder, cloud, roots).ShowDialog();
+        new CopyWindow(this, folder, cloud, roots, _analyzer).ShowDialog();
     }
 
     private void MnuCancelClosing_Click(object sender, RoutedEventArgs e)
