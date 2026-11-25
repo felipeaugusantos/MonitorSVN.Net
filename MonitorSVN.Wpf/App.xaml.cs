@@ -24,6 +24,12 @@ public partial class App : Application
         }
 
         AppLog.Purge();
+        // logs de BAT de fechamento (um por fechamento) se acumulam: em segundo plano, sem atrasar a abertura
+        _ = Task.Run(() =>
+        {
+            var removed = ClosingService.PurgeOldLogs(AppLog.Folder);
+            if (removed > 0) AppLog.Info($"{removed} log(s) de BAT com mais de {ClosingService.BatLogRetentionDays} dias removido(s).");
+        });
         AppLog.Info($"Iniciando Monitor SVN {Version()} (usuario {Environment.UserName}).");
 
         DispatcherUnhandledException += (_, args) =>

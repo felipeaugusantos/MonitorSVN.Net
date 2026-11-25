@@ -33,6 +33,8 @@ public sealed class ClosingService
     public const string BatFileName = "_FechamentoArquivos.bat";
     public const string CommandsFolder = "comandosCMD";
     public const int DefaultMaxConcurrent = 2;
+    public const string BatLogsFolder = "fechamentos_bat";
+    public const int BatLogRetentionDays = 90;
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromHours(1);
 
     private readonly object _gate = new();
@@ -55,6 +57,33 @@ public sealed class ClosingService
         _logFolder = logFolder;
         _slots = new SemaphoreSlim(maxConcurrent);
         _timeout = timeout ?? DefaultTimeout;
+    }
+
+    /// <summary>
+    /// Apaga os logs de BAT (um por fechamento) mais antigos que <paramref name="keepDays"/> dias e devolve quantos removeu.
+    /// So mexe em "*.log" da pasta fechamentos_bat; os demais logs do app nao sao tocados.
+    /// </summary>
+    public static int PurgeOldLogs(string logFolder, int keepDays = BatLogRetentionDays, DateTime? now = null)
+    {
+        var folder = Path.Combine(logFolder, BatLogsFolder);
+        var limit = (now ?? DateTime.Now).AddDays(-keepDays);
+        var removed = 0;
+        try
+        {
+            if (!Directory.Exists(folder)) return 0;
+            foreach (var path in Directory.EnumerateFiles(folder, "*.log", SearchOption.TopDirectoryOnly))
+            {
+                try
+                {
+                    if (File.GetLastWriteTime(path) >= limit) continue;
+                    File.Delete(path);
+                    removed++;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }   // em uso: fica para a proxima
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        return removed;
     }
 
     /// <summary>Projetos com _CLOUD no nome da pasta sao Cloud; os demais, Local.</summary>
@@ -208,7 +237,7 @@ public sealed class ClosingService
         job.StartedAt = DateTime.Now;
         job.State = ClosingState.Running;
         job.Percent = 0;
-        job.LogPath = Path.Combine(_logFolder, "fechamentos_bat", $"{job.Name}_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+        job.LogPath = Path.Combine(_logFolder, BatLogsFolder, $"{job.Name}_{DateTime.Now:yyyyMMdd_HHmmss}.log");
         AppLog.Info($"{job.Title} iniciado: {job.Name}; log={job.LogPath}");
 
         LearnPattern(job);
