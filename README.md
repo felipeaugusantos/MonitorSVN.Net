@@ -93,9 +93,9 @@ Uma linha **amarela** indica que o último fechamento gerou **menos ZIPs** do qu
 |---|---|
 | Abrir no Jenkins | Abre o job da versão no navegador. |
 | Copiar nº da revisão | Copia o número da revisão para a área de transferência. |
-| **Fechar versão: Local** ou **Cloud** | Inicia o fechamento (compacta os arquivos). O texto mostra o tipo da versão da linha. Só em linhas **Gerado**. |
-| **Cancelar fechamento** | Cancela um fechamento na fila ou em andamento. |
-| **Copiar para a rede: Local** ou **Cloud** | Abre a janela que copia os ZIPs para a pasta de destino na rede. Só em linhas **Gerado**. |
+| **Fechar versão: Local** / **Fechar versão: Cloud** | Inicia o fechamento da pasta Local ou da pasta Cloud da versão (compacta os arquivos). Só em linhas **Gerado**. O item fica desligado se a pasta não existir. |
+| **Cancelar fechamento** | Cancela os fechamentos da versão que estão na fila ou em andamento (Local e/ou Cloud). |
+| **Copiar para a rede: Local** / **Copiar para a rede: Cloud** | Abre a janela que copia os ZIPs da pasta Local ou Cloud para o destino na rede. Só em linhas **Gerado**. |
 | Reprocessar | Dispara o build de novo (use se o build travou ou se perdeu no Jenkins). |
 | Excluir (somente com erro) | Remove a linha com erro da lista. |
 
@@ -112,7 +112,8 @@ O fechamento roda o `comandosCMD\_FechamentoArquivos.bat` da pasta da versão. E
 **Passo a passo**
 
 1. Na tabela, clique com o botão direito numa linha com status **Gerado**.
-2. Escolha **Fechar versão: Local** (ou **Cloud**, conforme a versão) e confirme.
+2. Escolha **Fechar versão: Local** ou **Fechar versão: Cloud** e confirme. Cada versão tem as duas pastas, e cada
+   uma é fechada separadamente.
 3. Acompanhe a coluna **Fechamento**:
 
    | Texto | Significado |
@@ -128,7 +129,10 @@ O fechamento roda o `comandosCMD\_FechamentoArquivos.bat` da pasta da versão. E
 **Como o app decide se deu certo.** O fechamento só é considerado concluído quando **não sobra nenhum `.exe`, `.dll`
 ou `.bpl`** na raiz da pasta. O código de saída do BAT não é usado, porque ele não é confiável.
 
-**Local ou Cloud.** É decidido pelo nome da pasta: se termina com `_CLOUD`, é Cloud. Os dois usam o mesmo BAT.
+**Local e Cloud.** Cada versão gerada tem duas pastas irmãs na pasta raiz de geração: `379.48.2.30.74.150` (Local) e
+`379.48.2.30.74.150_CLOUD` (Cloud). A linha da tabela é uma só, e o menu tem um item para cada pasta. Os dois usam
+o mesmo BAT. Se uma das pastas não existir, o item dela fica desligado (passe o mouse para ver o caminho esperado).
+Quando as duas têm fechamento, a coluna **Fechamento** mostra os dois: `Local: Concluído 02:57 · Cloud: Em andamento 40%`.
 
 **O que o app confere antes de iniciar** (se algo falhar, ele mostra o motivo e não inicia):
 - a pasta existe e tem a pasta `comandosCMD` com o `_FechamentoArquivos.bat`;
@@ -158,7 +162,8 @@ A cópia envia os `.zip` da versão para a pasta de destino na rede, confere cad
 **Passo a passo**
 
 1. Feche a versão (seção anterior) e espere a coluna **Fechamento** mostrar *Concluído*.
-2. Clique com o botão direito na linha → **Copiar para a rede: Local** (ou **Cloud**).
+2. Clique com o botão direito na linha → **Copiar para a rede: Local** ou **Copiar para a rede: Cloud**, conforme a
+   pasta que está fechada.
 3. A janela procura a pasta de destino com o nome da versão nas pastas de rede. Se achar **mais de uma**, escolha a
    correta na lista. Se **não achar**, ela oferece criar a pasta nova em
    `_VERSOES_INDIVIDUAIS\<versão>\<nome>`, por exemplo `02.30.74-150\379.48.2.30.74.150_LOCAL`.
@@ -196,9 +201,10 @@ A cópia envia os `.zip` da versão para a pasta de destino na rede, confere cad
 
 Marque **Fechar a versão automaticamente ao gerar** (seção GERAÇÃO). Aí, a cada versão que passa para **Gerado**:
 
-1. o fechamento começa sozinho (na instância que está monitorando);
-2. ao concluir com sucesso, o app **pergunta** *"Iniciar a cópia agora?"*. Se responder **Sim**, abre a janela de cópia
-   com todas as validações de sempre.
+1. o fechamento começa sozinho, nas **duas pastas** da versão (Local e Cloud, as que existirem), na instância que está
+   monitorando;
+2. ao concluir cada uma com sucesso, o app **pergunta** *"Iniciar a cópia agora?"* (uma pergunta para a Local e outra
+   para a Cloud). Se responder **Sim**, abre a janela de cópia com todas as validações de sempre.
 
 A **cópia nunca começa sozinha**, porque ela apaga os ZIPs da origem. Se a janela estiver na bandeja, a pergunta
 aguarda e aparece quando você abrir o app.

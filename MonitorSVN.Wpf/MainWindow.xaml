@@ -1,7 +1,7 @@
 <Window x:Class="MonitorSVN.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Monitor SVN" Width="1600" Height="900" MinWidth="1500" MinHeight="620"
+        Title="Monitor SVN" Width="1600" Height="900" MinWidth="1540" MinHeight="620"
         Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextBrush}"
         FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True"
         WindowStartupLocation="CenterScreen">
@@ -343,9 +343,12 @@
                                 <MenuItem Header="Abrir no Jenkins" Click="MnuOpenJenkins_Click"/>
                                 <MenuItem Header="Copiar nº da revisão" Click="MnuCopyRev_Click"/>
                                 <Separator/>
-                                <MenuItem x:Name="mnuClose" Header="Fechar versão" Click="MnuClose_Click"/>
+                                <MenuItem x:Name="mnuCloseLocal" Header="Fechar versão: Local" Click="MnuCloseLocal_Click"/>
+                                <MenuItem x:Name="mnuCloseCloud" Header="Fechar versão: Cloud" Click="MnuCloseCloud_Click"/>
                                 <MenuItem Header="Cancelar fechamento" Click="MnuCancelClosing_Click"/>
-                                <MenuItem x:Name="mnuCopy" Header="Copiar para a rede" Click="MnuCopy_Click"/>
+                                <Separator/>
+                                <MenuItem x:Name="mnuCopyLocal" Header="Copiar para a rede: Local" Click="MnuCopyLocal_Click"/>
+                                <MenuItem x:Name="mnuCopyCloud" Header="Copiar para a rede: Cloud" Click="MnuCopyCloud_Click"/>
                                 <Separator/>
                                 <MenuItem Header="Reprocessar" Click="MnuReprocess_Click"/>
                                 <MenuItem Header="Excluir (somente com erro)" Click="MnuDelete_Click"/>
@@ -384,7 +387,7 @@
                                                 ElementStyle="{StaticResource CellCenter}" Width="110"/>
                             <DataGridTextColumn Header="Versão" Binding="{Binding Version}"
                                                 HeaderStyle="{StaticResource HeaderCenter}"
-                                                ElementStyle="{StaticResource CellCenter}" Width="*" MinWidth="160"/>
+                                                ElementStyle="{StaticResource CellCenter}" Width="*" MinWidth="150"/>
                             <DataGridTextColumn Header="Data" Binding="{Binding Timestamp, StringFormat=dd/MM/yyyy}"
                                                 HeaderStyle="{StaticResource HeaderCenter}"
                                                 ElementStyle="{StaticResource CellCenter}" Width="100"/>
@@ -399,7 +402,7 @@
                                                 ElementStyle="{StaticResource CellCenter}" Width="64"/>
                             <DataGridTextColumn Header="Fechamento" Binding="{Binding ClosingText}"
                                                 HeaderStyle="{StaticResource HeaderCenter}"
-                                                ElementStyle="{StaticResource CellCenter}" Width="120"/>
+                                                ElementStyle="{StaticResource CellCenter}" Width="160"/>
                             <DataGridTemplateColumn Header="Status" Width="116" HeaderStyle="{StaticResource HeaderCenter}"
                                                     CellTemplate="{StaticResource StatusTemplate}"/>
                         </DataGrid.Columns>

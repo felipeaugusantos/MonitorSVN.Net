@@ -540,8 +540,13 @@ public partial class MainWindow : Window
 
     // ---------------------------------------------------------------- fechamento da versao (BAT)
 
-    /// <summary>Pasta onde a versao gerada fica: a mesma que o Jenkins escreve e onde roda o fechamento.</summary>
-    private string ProjectFolder(LogEntry entry) => Path.Combine(_settings.GenerationRoot, entry.Version);
+    /// <summary>
+    /// Pasta de uma versao gerada: a mesma que o Jenkins escreve e onde roda o fechamento. Cada versao tem a Local
+    /// (nome da versao) e a Cloud (nome da versao + _CLOUD).
+    /// </summary>
+    private string FolderFor(LogEntry entry, bool cloud) => VersionFolders.PathFor(_settings.GenerationRoot, entry.Version, cloud);
+
+    private static string KindName(bool cloud) => cloud ? "Cloud" : "Local";
 
     // fechamento automatico: so a instancia que monitora; a copia sempre pede confirmacao
     private readonly HashSet<string> _chained = new(StringComparer.OrdinalIgnoreCase);
@@ -554,21 +559,26 @@ public partial class MainWindow : Window
         foreach (var entry in AutoChain.SelectForClosing(_entries, DateTime.Now))
         {
             entry.AutoClosed = true;   // uma tentativa so por linha
-            var folder = ProjectFolder(entry);
-            if (!Directory.Exists(folder) || ClosingService.PendingFiles(folder).Count == 0)
+            // as duas pastas da versao (Local e Cloud) fecham juntas; so as que existem e ainda tem o que compactar
+            foreach (var cloud in new[] { false, true })
             {
-                AppLog.Info($"Fechamento automatico ignorado ({entry.Version}): nada a compactar em {folder}.");
-                continue;
+                var folder = FolderFor(entry, cloud);
+                if (!Directory.Exists(folder)) continue;
+                if (ClosingService.PendingFiles(folder).Count == 0)
+                {
+                    AppLog.Info($"Fechamento automatico ignorado ({entry.Version}, {KindName(cloud)}): nada a compactar em {folder}.");
+                    continue;
+                }
+                var reason = _closing.Enqueue(folder);
+                if (reason is not null)
+                {
+                    AppLog.Warn($"Fechamento automatico de {entry.Version} ({KindName(cloud)}) nao iniciado: {reason}");
+                    ShowWarning($"Fechamento automático de {entry.Version} ({KindName(cloud)}) não iniciado: {reason}");
+                    continue;
+                }
+                _chained.Add(folder);
+                AppLog.Info($"Fechamento automatico iniciado: {entry.Version} ({KindName(cloud)}).");
             }
-            var reason = _closing.Enqueue(folder);
-            if (reason is not null)
-            {
-                AppLog.Warn($"Fechamento automatico de {entry.Version} nao iniciado: {reason}");
-                ShowWarning($"Fechamento automático de {entry.Version} não iniciado: {reason}");
-                continue;
-            }
-            _chained.Add(folder);
-            AppLog.Info($"Fechamento automatico iniciado: {entry.Version}.");
         }
         SaveEntriesSafe();
     }
@@ -589,32 +599,58 @@ public partial class MainWindow : Window
                     $"O fechamento de {name} terminou.{Environment.NewLine}{Environment.NewLine}" +
                     $"Iniciar a cópia agora ({title})? Ela remove da origem os ZIPs copiados.");
                 if (!answer) { AppLog.Info($"Copia de {name} adiada pelo operador."); continue; }
-                TryOpenCopy(folder, name);
+                TryOpenCopy(folder);
             }
         }
         finally { _prompting = false; }
+    }
+
+    /// <summary>Situacao do fechamento de uma pasta e, se ela gerou menos ZIPs que o normal, o aviso.</summary>
+    private (string Text, string Hint) ClosingPart(string folder, bool cloud)
+    {
+        var text = _closing.ProgressText(folder);
+        var hint = "";
+        // menos ZIPs que o maior total ja gerado nesta pasta: alerta (some enquanto um fechamento esta rodando)
+        if (!_closing.IsActive(folder) && _zips.GetRecord(Path.GetFileName(folder)) is { BelowMax: true } record)
+        {
+            var zips = $"{record.LastZips}/{record.MaxZips} ZIPs";
+            text = text.Length > 0 ? $"{text} ({zips})" : zips;
+            hint = $"Atenção ({KindName(cloud)}): o último fechamento gerou {record.LastZips} ZIP(s), mas esta pasta já gerou {record.MaxZips}. Confira se falta algum arquivo.";
+        }
+        return (text, hint);
     }
 
     private void RefreshClosingTexts()
     {
         foreach (var entry in _entries)
         {
-            var folder = ProjectFolder(entry);
-            var text = _closing.ProgressText(folder);
-            var hint = "";
-            // menos ZIPs que o maior total ja gerado nesta pasta: alerta (some enquanto um fechamento esta rodando)
-            if (!_closing.IsActive(folder) && _zips.GetRecord(entry.Version) is { BelowMax: true } record)
-            {
-                var zips = $"{record.LastZips}/{record.MaxZips} ZIPs";
-                text = text.Length > 0 ? $"{text} ({zips})" : zips;
-                hint = $"Atenção: o último fechamento gerou {record.LastZips} ZIP(s), mas esta pasta já gerou {record.MaxZips}. Confira se falta algum arquivo.";
-            }
+            var local = ClosingPart(FolderFor(entry, false), cloud: false);
+            var cloud = ClosingPart(FolderFor(entry, true), cloud: true);
+            var text = VersionFolders.ComposeColumn(local.Text, cloud.Text);
+            var hint = string.Join(Environment.NewLine + Environment.NewLine, new[] { local.Hint, cloud.Hint }.Where(h => h.Length > 0));
             if (entry.ClosingText != text) entry.ClosingText = text;
             if (entry.ZipHint != hint) entry.ZipHint = hint;
         }
     }
 
-    private void MnuClose_Click(object sender, RoutedEventArgs e)
+    /// <summary>Liga/desliga os itens do menu conforme as pastas Local e Cloud existam para a linha clicada.</summary>
+    private void UpdateVersionMenu(LogEntry entry)
+    {
+        foreach (var (item, cloud) in new[] { (mnuCloseLocal, false), (mnuCloseCloud, true), (mnuCopyLocal, false), (mnuCopyCloud, true) })
+        {
+            var folder = FolderFor(entry, cloud);
+            var exists = Directory.Exists(folder);
+            item.IsEnabled = exists;
+            item.ToolTip = exists ? folder : $"Pasta não encontrada: {folder}";
+        }
+    }
+
+    private void MnuCloseLocal_Click(object sender, RoutedEventArgs e) => CloseVersion(cloud: false);
+    private void MnuCloseCloud_Click(object sender, RoutedEventArgs e) => CloseVersion(cloud: true);
+    private void MnuCopyLocal_Click(object sender, RoutedEventArgs e) => CopyVersion(cloud: false);
+    private void MnuCopyCloud_Click(object sender, RoutedEventArgs e) => CopyVersion(cloud: true);
+
+    private void CloseVersion(bool cloud)
     {
         if (grid.SelectedItem is not LogEntry entry) return;
         if (entry.Status != BuildStatus.Generated)
@@ -624,10 +660,14 @@ public partial class MainWindow : Window
         }
 
         CollectSettings();
-        var folder = ProjectFolder(entry);
-        var kind = ClosingService.IsCloud(entry.Version) ? "Cloud" : "Local";
+        var folder = FolderFor(entry, cloud);
+        if (!Directory.Exists(folder))
+        {
+            MessageDialog.Info(this, "Fechamento não iniciado", $"Pasta não encontrada: {folder}");
+            return;
+        }
         if (!MessageDialog.Confirm(this, "Atenção",
-                $"Iniciar o Fechamento {kind} da versão {entry.Version}?{Environment.NewLine}{Environment.NewLine}" +
+                $"Iniciar o Fechamento {KindName(cloud)} da versão {entry.Version}?{Environment.NewLine}{Environment.NewLine}" +
                 $"Pasta: {folder}{Environment.NewLine}O BAT compacta os arquivos da pasta e remove os originais."))
             return;
 
@@ -640,7 +680,7 @@ public partial class MainWindow : Window
         RefreshClosingTexts();
     }
 
-    private void MnuCopy_Click(object sender, RoutedEventArgs e)
+    private void CopyVersion(bool cloud)
     {
         if (grid.SelectedItem is not LogEntry entry) return;
         if (entry.Status != BuildStatus.Generated)
@@ -650,24 +690,30 @@ public partial class MainWindow : Window
         }
 
         CollectSettings();
-        TryOpenCopy(ProjectFolder(entry), entry.Version);
+        TryOpenCopy(FolderFor(entry, cloud));
     }
 
     /// <summary>Confere se a copia pode comecar (fechamento, trava de outro operador) e abre a janela de copia.</summary>
-    private void TryOpenCopy(string folder, string version)
+    private void TryOpenCopy(string folder)
     {
-        var cloud = ClosingService.IsCloud(version);
+        var name = Path.GetFileName(folder);
+        var cloud = ClosingService.IsCloud(name);
         var title = CopyRules.TitleFor(cloud);
 
+        if (!Directory.Exists(folder))
+        {
+            MessageDialog.Info(this, title, $"Pasta não encontrada: {folder}");
+            return;
+        }
         if (_closing.IsActive(folder))
         {
-            AppLog.Warn($"{title} bloqueado ({version}): fechamento na fila ou em andamento.");
+            AppLog.Warn($"{title} bloqueado ({name}): fechamento na fila ou em andamento.");
             MessageDialog.Info(this, title, $"O fechamento desta versão ainda não terminou ({_closing.ProgressText(folder)}). Aguarde concluir.");
             return;
         }
         if (ProjectLock.ReadOwner(folder) is { } owner)
         {
-            AppLog.Warn($"{title} bloqueado ({version}): projeto em uso: {owner.Describe()}.");
+            AppLog.Warn($"{title} bloqueado ({name}): projeto em uso: {owner.Describe()}.");
             MessageDialog.Info(this, title, $"Este projeto está em uso.\n\n{owner.Describe()}.\n\nAguarde terminar para continuar.");
             return;
         }
@@ -680,17 +726,18 @@ public partial class MainWindow : Window
     private void MnuCancelClosing_Click(object sender, RoutedEventArgs e)
     {
         if (grid.SelectedItem is not LogEntry entry) return;
-        var folder = ProjectFolder(entry);
-        if (!_closing.IsActive(folder))
+        var active = new[] { false, true }.Select(c => FolderFor(entry, c)).Where(_closing.IsActive).ToList();
+        if (active.Count == 0)
         {
             MessageDialog.Info(this, "Monitor SVN", "Não há fechamento em andamento ou na fila para esta versão.");
             return;
         }
+        var which = string.Join(" e ", active.Select(f => ClosingService.IsCloud(Path.GetFileName(f)) ? "Cloud" : "Local"));
         if (!MessageDialog.Confirm(this, "Atenção",
-                "Cancelar o fechamento? Os arquivos que ainda não foram compactados ficam na pasta e a versão " +
+                $"Cancelar o fechamento ({which})? Os arquivos que ainda não foram compactados ficam na pasta e a versão " +
                 "precisará ser fechada de novo."))
             return;
-        _closing.Cancel(folder);
+        foreach (var folder in active) _closing.Cancel(folder);
     }
 
     private void OnClosingFinished(ClosingJob job)
@@ -737,13 +784,7 @@ public partial class MainWindow : Window
         if (FindParent<System.Windows.Controls.DataGridRow>(e.OriginalSource as DependencyObject) is { } row)
         {
             row.IsSelected = true;
-            // o tipo (Local/Cloud) vem do nome da pasta: mostra qual vale para esta linha
-            if (row.Item is LogEntry entry)
-            {
-                var kind = ClosingService.IsCloud(entry.Version) ? ": Cloud" : ": Local";
-                mnuClose.Header = "Fechar versão" + kind;
-                mnuCopy.Header = "Copiar para a rede" + kind;
-            }
+            if (row.Item is LogEntry entry) UpdateVersionMenu(entry);   // liga so o que a versao tem (Local e/ou Cloud)
         }
     }
 
