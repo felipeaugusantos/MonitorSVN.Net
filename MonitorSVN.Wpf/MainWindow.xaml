@@ -322,6 +322,7 @@
                                 <Separator/>
                                 <MenuItem Header="Fechar versão (Local/Cloud)" Click="MnuClose_Click"/>
                                 <MenuItem Header="Cancelar fechamento" Click="MnuCancelClosing_Click"/>
+                                <MenuItem Header="Copiar versão (Local/Cloud)" Click="MnuCopy_Click"/>
                                 <Separator/>
                                 <MenuItem Header="Reprocessar" Click="MnuReprocess_Click"/>
                                 <MenuItem Header="Excluir (somente com erro)" Click="MnuDelete_Click"/>

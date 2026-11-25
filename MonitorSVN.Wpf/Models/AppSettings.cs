@@ -35,6 +35,9 @@ public sealed class AppSettings
     /// </summary>
     public string ControlFolder { get; set; } = "";
 
+    /// <summary>Pastas de destino da copia alem das padrao (CopyRules.DefaultTargetRoots).</summary>
+    public List<string> ExtraCopyTargets { get; set; } = new();
+
     /// <summary>"Light", "Dark" ou vazio (segue o tema do Windows).</summary>
     public string Theme { get; set; } = "";
 

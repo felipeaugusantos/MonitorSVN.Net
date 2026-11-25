@@ -516,6 +516,38 @@ public partial class MainWindow : Window
         RefreshClosingTexts();
     }
 
+    private void MnuCopy_Click(object sender, RoutedEventArgs e)
+    {
+        if (grid.SelectedItem is not LogEntry entry) return;
+        if (entry.Status != BuildStatus.Generated)
+        {
+            MessageDialog.Info(this, "Monitor SVN", "A cópia só pode ser feita em versões com status Gerado.");
+            return;
+        }
+
+        CollectSettings();
+        var folder = ProjectFolder(entry);
+        var cloud = ClosingService.IsCloud(entry.Version);
+        var title = CopyRules.TitleFor(cloud);
+
+        if (_closing.IsActive(folder))
+        {
+            AppLog.Warn($"{title} bloqueado ({entry.Version}): fechamento na fila ou em andamento.");
+            MessageDialog.Info(this, title, $"O fechamento desta versão ainda não terminou ({_closing.ProgressText(folder)}). Aguarde concluir.");
+            return;
+        }
+        if (ProjectLock.ReadOwner(folder) is { } owner)
+        {
+            AppLog.Warn($"{title} bloqueado ({entry.Version}): projeto em uso: {owner.Describe()}.");
+            MessageDialog.Info(this, title, $"Este projeto está em uso.\n\n{owner.Describe()}.\n\nAguarde terminar para continuar.");
+            return;
+        }
+
+        var roots = CopyRules.DefaultTargetRoots.Concat(_settings.ExtraCopyTargets)
+            .Where(r => !string.IsNullOrWhiteSpace(r)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        new CopyWindow(this, folder, cloud, roots).ShowDialog();
+    }
+
     private void MnuCancelClosing_Click(object sender, RoutedEventArgs e)
     {
         if (grid.SelectedItem is not LogEntry entry) return;
