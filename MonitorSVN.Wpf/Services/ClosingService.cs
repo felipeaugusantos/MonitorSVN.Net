@@ -14,6 +14,8 @@ public sealed class ClosingJob
     public DateTime? FinishedAt { get; set; }
     public string Message { get; set; } = "";
     public string? LogPath { get; set; }
+    /// <summary>Total de ZIPs deste fechamento e o maior ja registrado (null se a memoria de ZIPs nao esta ligada).</summary>
+    public ZipRecord? ZipRecord { get; set; }
     internal CancellationTokenSource Cts { get; } = new();
     internal ProjectLock? Lock { get; set; }
 
@@ -39,15 +41,17 @@ public sealed class ClosingService
     private readonly string _logFolder;
     private readonly TimeSpan _timeout;
     private readonly ProjectAnalyzer? _analyzer;
+    private readonly ZipMemory? _zips;
 
     /// <summary>Disparado (em thread de fundo) quando um fechamento termina, com qualquer resultado.</summary>
     public event Action<ClosingJob>? Finished;
 
     /// <param name="analyzer">Se informado, aprende o padrao de arquivos da versao antes de rodar o BAT.</param>
     public ClosingService(string logFolder, int maxConcurrent = DefaultMaxConcurrent, TimeSpan? timeout = null,
-        ProjectAnalyzer? analyzer = null)
+        ProjectAnalyzer? analyzer = null, ZipMemory? zips = null)
     {
         _analyzer = analyzer;
+        _zips = zips;
         _logFolder = logFolder;
         _slots = new SemaphoreSlim(maxConcurrent);
         _timeout = timeout ?? DefaultTimeout;
@@ -228,6 +232,20 @@ public sealed class ClosingService
             Complete(job, ClosingState.Error, $"{pending.Count} arquivo(s) nao compactado(s): {preview}; {detail}");
             return;
         }
+
+        // memoria por pasta: avisa quando este fechamento gera menos ZIPs que o maior total ja registrado
+        if (_zips is not null)
+        {
+            try
+            {
+                job.ZipRecord = _zips.RecordClosing(job.Name, ZipMemory.CountZipFiles(job.ProjectPath));
+                detail = $"zips={job.ZipRecord.LastZips}; maior_registrado={job.ZipRecord.MaxZips}; {detail}";
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                detail = $"memoria_zips_falhou={ex.Message}; {detail}";
+            }
+        }
         Complete(job, ClosingState.Done, detail);
     }
 
@@ -253,7 +271,7 @@ public sealed class ClosingService
         job.FinishedAt = DateTime.Now;
         job.Message = message;
         job.State = state;
-        var line = $"{job.Title} {state switch { ClosingState.Done => "concluido", ClosingState.Cancelled => "cancelado", _ => "com erro" }}: {job.Name}; {message}";
+        var line = $"{job.Title} {state switch { ClosingState.Done => job.ZipRecord is { BelowMax: true } ? "concluido abaixo do maior total de ZIPs" : "concluido", ClosingState.Cancelled => "cancelado", _ => "com erro" }}: {job.Name}; {message}";
         if (state == ClosingState.Done) AppLog.Info(line); else AppLog.Warn(line, ex);
     }
 }

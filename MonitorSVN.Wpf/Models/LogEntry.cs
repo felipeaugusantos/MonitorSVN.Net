@@ -56,6 +56,25 @@ public sealed class LogEntry : INotifyPropertyChanged
         set { if (_closingText == value) return; _closingText = value; OnChanged(); }
     }
 
+    private string _zipHint = "";
+
+    /// <summary>Aviso de "menos ZIPs que o normal" para esta versao (vazio = sem alerta). Nao e gravado.</summary>
+    [JsonIgnore]
+    public string ZipHint
+    {
+        get => _zipHint;
+        set
+        {
+            if (_zipHint == value) return;
+            _zipHint = value;
+            OnChanged();
+            OnChanged(nameof(ZipBelowMax));
+            OnChanged(nameof(ToolTipText));
+        }
+    }
+
+    [JsonIgnore] public bool ZipBelowMax => _zipHint.Length > 0;
+
     [JsonIgnore] public string StartedText => StartedAt is { } t ? t.ToString("HH:mm") : "—";
 
     /// <summary>Quando a geração terminou (Gerado ou Erro). Nulo enquanto não terminou.</summary>
@@ -172,6 +191,7 @@ public sealed class LogEntry : INotifyPropertyChanged
             var text = string.IsNullOrWhiteSpace(ErrorDetail) ? StatusText : StatusText + Environment.NewLine + ErrorDetail;
             if (Status == BuildStatus.Error && !string.IsNullOrWhiteSpace(Suspect))
                 text += Environment.NewLine + Environment.NewLine + "Provável responsável: " + Suspect;
+            if (ZipBelowMax) text += Environment.NewLine + Environment.NewLine + ZipHint;
             return text;
         }
     }

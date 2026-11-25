@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     private readonly MonitorService _service;
     private readonly ProjectAnalyzer _analyzer;
     private readonly ClosingService _closing;
+    private readonly ZipMemory _zips;
     private readonly DispatcherTimer _closingTimer = new() { Interval = TimeSpan.FromSeconds(1) };
 
     private readonly DispatcherTimer _scheduler = new() { Interval = TimeSpan.FromSeconds(30) };
@@ -58,7 +59,8 @@ public partial class MainWindow : Window
         patterns.SeedFrom(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "VarreduraSistema", ProjectPatternStore.FileName));   // aproveita o que o VarreduraSistema ja aprendeu
         _analyzer = new ProjectAnalyzer(patterns);
-        _closing = new ClosingService(AppLog.Folder, analyzer: _analyzer);
+        _zips = new ZipMemory(patternFolder);
+        _closing = new ClosingService(AppLog.Folder, analyzer: _analyzer, zips: _zips);
 
         ThemeManager.Attach(this);
         ThemeManager.Apply(_settings.Theme switch
@@ -549,8 +551,18 @@ public partial class MainWindow : Window
     {
         foreach (var entry in _entries)
         {
-            var text = _closing.ProgressText(ProjectFolder(entry));
+            var folder = ProjectFolder(entry);
+            var text = _closing.ProgressText(folder);
+            var hint = "";
+            // menos ZIPs que o maior total ja gerado nesta pasta: alerta (some enquanto um fechamento esta rodando)
+            if (!_closing.IsActive(folder) && _zips.GetRecord(entry.Version) is { BelowMax: true } record)
+            {
+                var zips = $"{record.LastZips}/{record.MaxZips} ZIPs";
+                text = text.Length > 0 ? $"{text} ({zips})" : zips;
+                hint = $"Atenção: o último fechamento gerou {record.LastZips} ZIP(s), mas esta pasta já gerou {record.MaxZips}. Confira se falta algum arquivo.";
+            }
             if (entry.ClosingText != text) entry.ClosingText = text;
+            if (entry.ZipHint != hint) entry.ZipHint = hint;
         }
     }
 
@@ -642,12 +654,15 @@ public partial class MainWindow : Window
 
         var ok = job.State == ClosingState.Done;
         var title = $"{job.Title}: {job.Name}";
-        var text = ok ? "Fechamento concluído." : "Fechamento com erro: " + job.Message;
+        var below = ok && job.ZipRecord is { BelowMax: true };
+        var text = !ok ? "Fechamento com erro: " + job.Message
+            : below ? $"Fechamento concluído, mas gerou {job.ZipRecord!.LastZips} ZIP(s) e esta pasta já gerou {job.ZipRecord.MaxZips}. Confira se falta algum arquivo."
+            : "Fechamento concluído.";
         try
         {
             _tray.Visible = true;
             _tray.ShowBalloonTip(10000, title, text,
-                ok ? System.Windows.Forms.ToolTipIcon.Info : System.Windows.Forms.ToolTipIcon.Warning);
+                ok && !below ? System.Windows.Forms.ToolTipIcon.Info : System.Windows.Forms.ToolTipIcon.Warning);
         }
         catch (Exception ex) { AppLog.Warn("Nao foi possivel mostrar o aviso do fechamento na bandeja.", ex); }
         if (!ok && IsVisible) ShowWarning(title + Environment.NewLine + text);
