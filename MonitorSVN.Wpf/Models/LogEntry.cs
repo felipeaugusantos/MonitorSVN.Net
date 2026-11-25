@@ -40,6 +40,9 @@ public sealed class LogEntry : INotifyPropertyChanged
     public DateTime? StaleErrorStamp { get; set; }
     public DateTime? StaleDoneStamp { get; set; }
 
+    /// <summary>O fechamento automatico desta linha ja foi tentado (nao repete ao reabrir o app).</summary>
+    public bool AutoClosed { get; set; }
+
     /// <summary>Quando o build foi disparado no Jenkins. Nulo se ainda não foi disparado.</summary>
     public DateTime? StartedAt { get; set; }
 

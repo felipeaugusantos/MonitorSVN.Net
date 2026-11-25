@@ -35,6 +35,9 @@ public sealed class AppSettings
     /// </summary>
     public string ControlFolder { get; set; } = "";
 
+    /// <summary>Ao gerar uma versao, inicia o fechamento sozinho e, ao terminar, pergunta se quer copiar.</summary>
+    public bool AutoClose { get; set; }
+
     /// <summary>Pastas de destino da copia alem das padrao (CopyRules.DefaultTargetRoots).</summary>
     public List<string> ExtraCopyTargets { get; set; } = new();
 

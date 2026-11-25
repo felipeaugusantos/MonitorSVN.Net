@@ -28,7 +28,7 @@ public partial class MainWindow : Window
     private readonly System.Windows.Forms.NotifyIcon _tray = new();
 
     // abaixo desta altura o painel esquerdo passa a rolar; acima, a lista de diretorios absorve o espaco
-    private const double LeftContentMinHeight = 710;
+    private const double LeftContentMinHeight = 740;
 
     private DateTime? _lastRun;
     private bool _running;
@@ -106,6 +106,7 @@ public partial class MainWindow : Window
         txtBuildUrl.Text = _settings.BuildUrlTemplate;
         txtRoot.Text = _settings.GenerationRoot;
         txtSlowMinutes.Text = _settings.SlowAfterMinutes.ToString();
+        chkAutoClose.IsChecked = _settings.AutoClose;
         txtUser.Text = _settings.JenkinsUser;
         chkRemember.IsChecked = _settings.RememberCredentials;
         pwdPassword.Password = _settings.RememberCredentials ? _settings.Password : "";
@@ -119,6 +120,7 @@ public partial class MainWindow : Window
         _settings.GenerationRoot = txtRoot.Text.Trim();
         _settings.SlowAfterMinutes = AlertCollector.ParseMinutes(txtSlowMinutes.Text, _settings.SlowAfterMinutes);
         txtSlowMinutes.Text = _settings.SlowAfterMinutes.ToString();   // valor invalido volta ao anterior
+        _settings.AutoClose = chkAutoClose.IsChecked == true;
         _settings.JenkinsUser = txtUser.Text.Trim();
         _settings.RememberCredentials = chkRemember.IsChecked == true;
         _settings.Password = pwdPassword.Password;
@@ -366,6 +368,7 @@ public partial class MainWindow : Window
         // quem nao monitora nao consome concluido.txt/erro.txt nem avisa: o monitor faz isso (evita aviso em dobro)
         if (!_role.IsMonitor) return;
         var finished = _service.RefreshStatus(_settings);
+        if (finished) AutoCloseGenerated();
         RefreshGrid();
         SaveEntriesSafe();
 
@@ -481,6 +484,58 @@ public partial class MainWindow : Window
     /// <summary>Pasta onde a versao gerada fica: a mesma que o Jenkins escreve e onde roda o fechamento.</summary>
     private string ProjectFolder(LogEntry entry) => Path.Combine(_settings.GenerationRoot, entry.Version);
 
+    // fechamento automatico: so a instancia que monitora; a copia sempre pede confirmacao
+    private readonly HashSet<string> _chained = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Queue<string> _copyPrompts = new();
+    private bool _prompting;
+
+    private void AutoCloseGenerated()
+    {
+        if (!_settings.AutoClose || !_role.IsMonitor) return;
+        foreach (var entry in AutoChain.SelectForClosing(_entries, DateTime.Now))
+        {
+            entry.AutoClosed = true;   // uma tentativa so por linha
+            var folder = ProjectFolder(entry);
+            if (!Directory.Exists(folder) || ClosingService.PendingFiles(folder).Count == 0)
+            {
+                AppLog.Info($"Fechamento automatico ignorado ({entry.Version}): nada a compactar em {folder}.");
+                continue;
+            }
+            var reason = _closing.Enqueue(folder);
+            if (reason is not null)
+            {
+                AppLog.Warn($"Fechamento automatico de {entry.Version} nao iniciado: {reason}");
+                ShowWarning($"Fechamento automático de {entry.Version} não iniciado: {reason}");
+                continue;
+            }
+            _chained.Add(folder);
+            AppLog.Info($"Fechamento automatico iniciado: {entry.Version}.");
+        }
+        SaveEntriesSafe();
+    }
+
+    /// <summary>Depois do fechamento automatico, pergunta se copia agora. Espera a janela estar visivel.</summary>
+    private void ProcessCopyPrompts()
+    {
+        if (_prompting || !IsVisible || WindowState == WindowState.Minimized) return;
+        _prompting = true;
+        try
+        {
+            while (_copyPrompts.Count > 0)
+            {
+                var folder = _copyPrompts.Dequeue();
+                var name = Path.GetFileName(folder);
+                var title = CopyRules.TitleFor(ClosingService.IsCloud(name));
+                var answer = MessageDialog.Confirm(this, "Fechamento concluído",
+                    $"O fechamento de {name} terminou.{Environment.NewLine}{Environment.NewLine}" +
+                    $"Iniciar a cópia agora ({title})? Ela remove da origem os ZIPs copiados.");
+                if (!answer) { AppLog.Info($"Copia de {name} adiada pelo operador."); continue; }
+                TryOpenCopy(folder, name);
+            }
+        }
+        finally { _prompting = false; }
+    }
+
     private void RefreshClosingTexts()
     {
         foreach (var entry in _entries)
@@ -526,19 +581,24 @@ public partial class MainWindow : Window
         }
 
         CollectSettings();
-        var folder = ProjectFolder(entry);
-        var cloud = ClosingService.IsCloud(entry.Version);
+        TryOpenCopy(ProjectFolder(entry), entry.Version);
+    }
+
+    /// <summary>Confere se a copia pode comecar (fechamento, trava de outro operador) e abre a janela de copia.</summary>
+    private void TryOpenCopy(string folder, string version)
+    {
+        var cloud = ClosingService.IsCloud(version);
         var title = CopyRules.TitleFor(cloud);
 
         if (_closing.IsActive(folder))
         {
-            AppLog.Warn($"{title} bloqueado ({entry.Version}): fechamento na fila ou em andamento.");
+            AppLog.Warn($"{title} bloqueado ({version}): fechamento na fila ou em andamento.");
             MessageDialog.Info(this, title, $"O fechamento desta versão ainda não terminou ({_closing.ProgressText(folder)}). Aguarde concluir.");
             return;
         }
         if (ProjectLock.ReadOwner(folder) is { } owner)
         {
-            AppLog.Warn($"{title} bloqueado ({entry.Version}): projeto em uso: {owner.Describe()}.");
+            AppLog.Warn($"{title} bloqueado ({version}): projeto em uso: {owner.Describe()}.");
             MessageDialog.Info(this, title, $"Este projeto está em uso.\n\n{owner.Describe()}.\n\nAguarde terminar para continuar.");
             return;
         }
@@ -567,6 +627,8 @@ public partial class MainWindow : Window
     private void OnClosingFinished(ClosingJob job)
     {
         RefreshClosingTexts();
+        var chained = _chained.Remove(job.ProjectPath);
+        if (chained && job.State == ClosingState.Done) _copyPrompts.Enqueue(job.ProjectPath);
         if (job.State == ClosingState.Cancelled) return;
 
         var ok = job.State == ClosingState.Done;
@@ -580,6 +642,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) { AppLog.Warn("Nao foi possivel mostrar o aviso do fechamento na bandeja.", ex); }
         if (!ok && IsVisible) ShowWarning(title + Environment.NewLine + text);
+        ProcessCopyPrompts();
     }
 
     // ---------------------------------------------------------------- menu da grade: Jenkins e copiar
@@ -805,6 +868,7 @@ public partial class MainWindow : Window
         Show();
         WindowState = WindowState.Normal;
         Activate();
+        ProcessCopyPrompts();
     }
 
     private void OnClosing(object? sender, CancelEventArgs e)

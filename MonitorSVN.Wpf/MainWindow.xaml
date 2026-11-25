@@ -253,6 +253,8 @@
                                  ToolTip="Minutos (de 5 a 1440). Passado esse tempo em andamento, o app avisa uma vez."/>
                         <TextBlock Text="min" Style="{StaticResource Label}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
+                    <CheckBox x:Name="chkAutoClose" Content="Fechar a versão automaticamente ao gerar" Margin="0,10,0,0"
+                              ToolTip="Ao terminar a geração, inicia o fechamento (BAT). Ao concluir, pergunta se quer copiar."/>
                     <TextBlock Text="Ignorar commits de" Style="{StaticResource Label}"/>
 
                     <Grid>
