@@ -326,6 +326,43 @@
                     </WrapPanel>
                 </Grid>
 
+                <!-- Legenda da coluna Pastas -->
+                <Border DockPanel.Dock="Bottom" Padding="20,10,20,10" BorderThickness="0,1,0,0"
+                        BorderBrush="{DynamicResource BorderBrush}">
+                    <StackPanel>
+                        <TextBlock Text="Legenda da coluna Pastas (clique em Local ou Cloud para abrir a pasta)" FontSize="12"
+                                   Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,6"/>
+                        <WrapPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,18,2">
+                                <TextBlock Text="Local ✗" FontWeight="SemiBold" Foreground="{DynamicResource DangerBrush}" Margin="0,0,6,0"/>
+                                <TextBlock Text="vermelho: a pasta não existe ou está vazia" Foreground="{DynamicResource TextMutedBrush}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,18,2">
+                                <TextBlock Text="Local ●" FontWeight="SemiBold" Foreground="{DynamicResource WarningBrush}" Margin="0,0,6,0"/>
+                                <TextBlock Text="amarelo: tem os arquivos, ainda não foi fechada" Foreground="{DynamicResource TextMutedBrush}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,18,2">
+                                <TextBlock Text="Local ✓" FontWeight="SemiBold" Foreground="{DynamicResource SuccessBrush}" Margin="0,0,6,0"/>
+                                <TextBlock Text="verde: fechada, tudo em ZIP" Foreground="{DynamicResource TextMutedBrush}"/>
+                            </StackPanel>
+                        </WrapPanel>
+                        <WrapPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,18,2">
+                                <TextBlock Text="Cloud ✗" FontWeight="SemiBold" Foreground="{DynamicResource DangerBrush}" Margin="0,0,6,0"/>
+                                <TextBlock Text="vermelho: a pasta não existe ou está vazia" Foreground="{DynamicResource TextMutedBrush}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,18,2">
+                                <TextBlock Text="Cloud ●" FontWeight="SemiBold" Foreground="{DynamicResource WarningBrush}" Margin="0,0,6,0"/>
+                                <TextBlock Text="amarelo: tem os arquivos, ainda não foi fechada" Foreground="{DynamicResource TextMutedBrush}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,18,2">
+                                <TextBlock Text="Cloud ✓" FontWeight="SemiBold" Foreground="{DynamicResource SuccessBrush}" Margin="0,0,6,0"/>
+                                <TextBlock Text="verde: fechada, tudo em ZIP" Foreground="{DynamicResource TextMutedBrush}"/>
+                            </StackPanel>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
                 <Grid>
                     <DataGrid x:Name="grid" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
                               MouseDoubleClick="Grid_MouseDoubleClick"
@@ -414,6 +451,10 @@
                                                         <Setter Property="Text" Value="Local ✗"/>
                                                         <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
                                                         <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding LocalOpen}" Value="True">
+                                                                <Setter Property="Text" Value="Local ●"/>
+                                                                <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
+                                                            </DataTrigger>
                                                             <DataTrigger Binding="{Binding LocalClosed}" Value="True">
                                                                 <Setter Property="Text" Value="Local ✓"/>
                                                                 <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
@@ -430,6 +471,10 @@
                                                         <Setter Property="Text" Value="Cloud ✗"/>
                                                         <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
                                                         <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding CloudOpen}" Value="True">
+                                                                <Setter Property="Text" Value="Cloud ●"/>
+                                                                <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
+                                                            </DataTrigger>
                                                             <DataTrigger Binding="{Binding CloudClosed}" Value="True">
                                                                 <Setter Property="Text" Value="Cloud ✓"/>
                                                                 <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>

@@ -135,7 +135,15 @@ ou `.bpl`** na raiz da pasta. O código de saída do BAT não é usado, porque e
 o mesmo BAT. Se uma das pastas não existir, o item dela fica desligado (passe o mouse para ver o caminho esperado).
 Quando as duas têm fechamento, a coluna **Fechamento** mostra os dois: `Local: Concluído 02:57 · Cloud: Em andamento 40%`.
 
-A coluna **Pastas** mostra a situação de cada pasta: `Local ✓ · Cloud ✓`. Cada lado fica **vermelho (✗)** enquanto a pasta não existe ou ainda não passou pelo fechamento (sobrou .exe, .dll ou .bpl solto, ou não há ZIPs), e só fica **verde (✓)** depois do fechamento, com tudo em ZIP. Passe o mouse para ver o motivo de cada lado. **Clique em "Local" ou "Cloud"** para abrir aquela pasta no Explorer.
+A coluna **Pastas** mostra a situação de cada pasta, com uma cor para cada lado (Local e Cloud):
+
+| Cor | Significa |
+|---|---|
+| **Vermelho ✗** | A pasta não existe ou está vazia. |
+| **Amarelo ●** | A pasta tem os arquivos, mas ainda não passou pelo fechamento (sobrou .exe, .dll ou .bpl solto, ou o fechamento está rodando). |
+| **Verde ✓** | Fechada: passou pelo fechamento e tudo está em ZIP. |
+
+A legenda também aparece embaixo da tabela. Passe o mouse para ver o motivo de cada lado. **Clique em "Local" ou "Cloud"** para abrir aquela pasta no Explorer.
 
 **O que o app confere antes de iniciar** (se algo falhar, ele mostra o motivo e não inicia):
 - a pasta existe e tem a pasta `comandosCMD` com o `_FechamentoArquivos.bat`;

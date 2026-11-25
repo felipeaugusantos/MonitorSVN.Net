@@ -40,7 +40,7 @@ public class VersionFoldersTests
     [InlineData(false, 0, 0, false, FolderState.Missing)]
     [InlineData(true, 3, 0, false, FolderState.Open)]    // gerada, nada compactado
     [InlineData(true, 2, 5, false, FolderState.Open)]    // fechamento incompleto: sobrou .exe/.dll
-    [InlineData(true, 0, 0, false, FolderState.Open)]    // sem arquivos nem ZIPs: nao provou fechamento
+    [InlineData(true, 0, 0, false, FolderState.Empty)]   // sem arquivos nem ZIPs
     [InlineData(true, 0, 5, true, FolderState.Open)]     // fechamento rodando agora
     [InlineData(true, 0, 5, false, FolderState.Closed)]  // tudo em ZIP
     public void A_folder_is_closed_only_when_everything_is_zipped(bool exists, int pending, int zips, bool active, FolderState expected) =>

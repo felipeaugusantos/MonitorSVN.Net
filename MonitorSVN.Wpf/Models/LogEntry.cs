@@ -64,18 +64,20 @@ public sealed class LogEntry : INotifyPropertyChanged
     public MonitorSVN.Services.FolderState LocalState
     {
         get => _localState;
-        set { if (_localState == value) return; _localState = value; OnChanged(); OnChanged(nameof(LocalClosed)); OnChanged(nameof(FoldersTip)); }
+        set { if (_localState == value) return; _localState = value; OnChanged(); OnChanged(nameof(LocalClosed)); OnChanged(nameof(LocalOpen)); OnChanged(nameof(FoldersTip)); }
     }
 
     [JsonIgnore]
     public MonitorSVN.Services.FolderState CloudState
     {
         get => _cloudState;
-        set { if (_cloudState == value) return; _cloudState = value; OnChanged(); OnChanged(nameof(CloudClosed)); OnChanged(nameof(FoldersTip)); }
+        set { if (_cloudState == value) return; _cloudState = value; OnChanged(); OnChanged(nameof(CloudClosed)); OnChanged(nameof(CloudOpen)); OnChanged(nameof(FoldersTip)); }
     }
 
     [JsonIgnore] public bool LocalClosed => _localState == MonitorSVN.Services.FolderState.Closed;
     [JsonIgnore] public bool CloudClosed => _cloudState == MonitorSVN.Services.FolderState.Closed;
+    [JsonIgnore] public bool LocalOpen => _localState == MonitorSVN.Services.FolderState.Open;
+    [JsonIgnore] public bool CloudOpen => _cloudState == MonitorSVN.Services.FolderState.Open;
 
     [JsonIgnore]
     public string FoldersTip =>

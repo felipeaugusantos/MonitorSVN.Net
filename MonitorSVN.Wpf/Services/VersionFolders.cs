@@ -4,7 +4,8 @@ namespace MonitorSVN.Services;
 /// Cada versao gerada tem duas pastas irmas em "pasta raiz de geracao": a Local (<c>379.48.2.30.74.150</c>) e a Cloud
 /// (<c>379.48.2.30.74.150_CLOUD</c>). O Monitor tem uma linha so por versao, entao as duas sao tratadas a partir dela.
 /// </summary>
-public enum FolderState { Missing, Open, Closed }
+/// <summary>Missing = nao existe; Empty = existe sem arquivos; Open = tem arquivos, ainda nao fechada; Closed = fechada (tudo em ZIP).</summary>
+public enum FolderState { Missing, Empty, Open, Closed }
 
 public static class VersionFolders
 {
@@ -30,7 +31,8 @@ public static class VersionFolders
     public static FolderState StateOf(bool exists, int pendingFiles, int zipFiles, bool closingActive)
     {
         if (!exists) return FolderState.Missing;
-        return pendingFiles == 0 && zipFiles > 0 && !closingActive ? FolderState.Closed : FolderState.Open;
+        if (pendingFiles == 0 && zipFiles == 0) return FolderState.Empty;
+        return pendingFiles == 0 && !closingActive ? FolderState.Closed : FolderState.Open;
     }
 
     public static FolderState StateOf(string folder, bool closingActive)
@@ -47,7 +49,8 @@ public static class VersionFolders
     public static string StateText(FolderState state) => state switch
     {
         FolderState.Closed => "fechada: tudo em ZIP",
-        FolderState.Open => "gerada, ainda não fechada",
+        FolderState.Open => "tem os arquivos, ainda não fechada",
+        FolderState.Empty => "pasta vazia",
         _ => "pasta não encontrada"
     };
 
