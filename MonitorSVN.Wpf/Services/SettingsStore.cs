@@ -50,12 +50,14 @@ public sealed class SettingsStore
         if (s.Rules.Count == 0) s.Rules = AppSettings.DefaultRules();
         if (s.RememberCredentials) s.Password = Unprotect(s.ProtectedPassword);
         s.SmtpPassword = Unprotect(s.ProtectedSmtpPassword);
+        s.ChatWebhook = Unprotect(s.ProtectedChatWebhook);
         return s;
     }
 
     public void Save(AppSettings s)
     {
         s.ProtectedSmtpPassword = Protect(s.SmtpPassword);
+        s.ProtectedChatWebhook = Protect(s.ChatWebhook);
         s.ProtectedPassword = s.RememberCredentials ? Protect(s.Password) : "";
         WriteAtomic(SettingsPath, JsonSerializer.Serialize(s, Json));
     }

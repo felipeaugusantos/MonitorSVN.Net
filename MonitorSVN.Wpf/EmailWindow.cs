@@ -5,7 +5,7 @@ using MonitorSVN.Services;
 
 namespace MonitorSVN;
 
-/// <summary>Configura o aviso por e-mail (SMTP) e permite enviar uma mensagem de teste.</summary>
+/// <summary>Configura os avisos por e-mail (SMTP) e no Google Chat (webhook), cada um com envio de teste.</summary>
 public sealed class EmailWindow : Window
 {
     private readonly AppSettings _settings;
@@ -18,14 +18,17 @@ public sealed class EmailWindow : Window
     private readonly TextBox _from = new();
     private readonly TextBox _to = new();
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 10, 0, 0) };
-    private readonly Button _test = new() { Content = "Enviar teste", Width = 110, Height = 34, Margin = new Thickness(0, 0, 8, 0) };
+    private readonly Button _test = new() { Content = "Testar e-mail", Width = 110, Height = 34, Margin = new Thickness(0, 0, 8, 0) };
+    private readonly CheckBox _chatEnabled = new() { Content = "Enviar também para um espaço do Google Chat" };
+    private readonly PasswordBox _webhook = new();
+    private readonly Button _testChat = new() { Content = "Testar Chat", Width = 110, Height = 34, Margin = new Thickness(0, 0, 8, 0) };
 
     public EmailWindow(Window owner, AppSettings settings)
     {
         _settings = settings;
         Owner = owner;
-        Title = "Aviso por e-mail";
-        Width = 560;
+        Title = "Avisos";
+        Width = 600;
         SizeToContent = SizeToContent.Height;
         ResizeMode = ResizeMode.NoResize;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -36,6 +39,8 @@ public sealed class EmailWindow : Window
         SetResourceReference(ForegroundProperty, "TextBrush");
         ThemeManager.Attach(this);
 
+        _chatEnabled.IsChecked = settings.ChatEnabled;
+        _webhook.Password = settings.ChatWebhook;
         _enabled.IsChecked = settings.EmailEnabled;
         _host.Text = settings.SmtpHost;
         _port.Text = settings.SmtpPort.ToString();
@@ -70,11 +75,20 @@ public sealed class EmailWindow : Window
         panel.Children.Add(Label("Destinatários (separe por ponto e vírgula)"));
         panel.Children.Add(_to);
 
+        var chatTitle = new TextBlock { Text = "GOOGLE CHAT", FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 20, 0, 0) };
+        chatTitle.SetResourceReference(TextBlock.ForegroundProperty, "TextMutedBrush");
+        panel.Children.Add(chatTitle);
+        _chatEnabled.Margin = new Thickness(0, 8, 0, 0);
+        panel.Children.Add(_chatEnabled);
+        panel.Children.Add(Label("Endereço do webhook (no Chat: espaço > Apps e integrações > Webhooks)"));
+        panel.Children.Add(_webhook);
+
         var note = new TextBlock
         {
             TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 10, 0, 0),
             Text = "Cada versão gera um aviso só, igual ao balão da bandeja. Se o envio falhar, o app mostra o motivo na faixa " +
-                   "de aviso e não tenta de novo aquele aviso. Gmail e Office 365 pedem senha de aplicativo, não a senha normal."
+                   "de aviso e não tenta de novo aquele aviso. Gmail e Office 365 pedem senha de aplicativo, não a senha normal. " +
+                   "O endereço do webhook funciona como senha do espaço: não o compartilhe."
         };
         note.SetResourceReference(TextBlock.ForegroundProperty, "TextMutedBrush");
         panel.Children.Add(note);
@@ -85,12 +99,14 @@ public sealed class EmailWindow : Window
         var cancel = new Button { Content = "Cancelar", Width = 90, Height = 34, IsCancel = true };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
         buttons.Children.Add(_test);
+        buttons.Children.Add(_testChat);
         buttons.Children.Add(ok);
         buttons.Children.Add(cancel);
         panel.Children.Add(buttons);
         Content = panel;
 
         _test.Click += async (_, _) => await TestAsync();
+        _testChat.Click += async (_, _) => await TestChatAsync();
         ok.Click += (_, _) => Save();
     }
 
@@ -108,7 +124,8 @@ public sealed class EmailWindow : Window
         {
             EmailEnabled = _enabled.IsChecked == true, SmtpHost = _host.Text.Trim(), SmtpPort = port,
             SmtpSsl = _ssl.IsChecked == true, SmtpUser = _user.Text.Trim(), SmtpPassword = _password.Password,
-            EmailFrom = _from.Text.Trim(), EmailTo = _to.Text.Trim()
+            EmailFrom = _from.Text.Trim(), EmailTo = _to.Text.Trim(),
+            ChatEnabled = _chatEnabled.IsChecked == true, ChatWebhook = _webhook.Password.Trim()
         };
     }
 
@@ -134,11 +151,27 @@ public sealed class EmailWindow : Window
         finally { _test.IsEnabled = true; }
     }
 
+    private async Task TestChatAsync()
+    {
+        var d = Draft();
+        if (ChatNotifier.Validate(d) is { } problem) { Show(problem, true); return; }
+        _testChat.IsEnabled = false;
+        Show("Enviando…", false);
+        try
+        {
+            await ChatNotifier.SendAsync(d, "Monitor SVN: mensagem de teste. O aviso no Google Chat está configurado.");
+            Show("Teste enviado ao espaço do Chat. Confira se a mensagem apareceu lá.", false);
+        }
+        catch (Exception ex) { Show("Falhou: " + (ex.InnerException?.Message ?? ex.Message), true); }
+        finally { _testChat.IsEnabled = true; }
+    }
+
     private void Save()
     {
         var d = Draft();
         // desligado, aceita campos incompletos; ligado, so salva configuracao que consegue enviar
         if (d.EmailEnabled && EmailNotifier.Validate(d) is { } problem) { Show(problem, true); return; }
+        if (d.ChatEnabled && ChatNotifier.Validate(d) is { } chatProblem) { Show(chatProblem, true); return; }
 
         _settings.EmailEnabled = d.EmailEnabled;
         _settings.SmtpHost = d.SmtpHost;
@@ -148,6 +181,8 @@ public sealed class EmailWindow : Window
         _settings.SmtpPassword = d.SmtpPassword;
         _settings.EmailFrom = d.EmailFrom;
         _settings.EmailTo = d.EmailTo;
+        _settings.ChatEnabled = d.ChatEnabled;
+        _settings.ChatWebhook = d.ChatWebhook;
         DialogResult = true;
     }
 }

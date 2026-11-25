@@ -308,6 +308,22 @@ public partial class MainWindow : Window
         if (IsVisible) ShowWarning(title + Environment.NewLine + text);
 
         if (_settings.EmailEnabled) _ = SendEmailAsync(alerts);
+        if (_settings.ChatEnabled) _ = SendChatAsync(alerts);
+    }
+
+    private async Task SendChatAsync(IReadOnlyList<BuildAlert> alerts)
+    {
+        try
+        {
+            await ChatNotifier.SendAsync(_settings, ChatNotifier.Compose(alerts));
+            AppLog.Info("Aviso enviado ao Google Chat.");
+        }
+        catch (Exception ex)
+        {
+            var reason = ex.InnerException?.Message ?? ex.Message;
+            AppLog.Warn("Nao foi possivel enviar o aviso ao Google Chat.", ex);
+            ShowWarning("Não foi possível enviar o aviso ao Google Chat: " + reason);
+        }
     }
 
     private async Task SendEmailAsync(IReadOnlyList<BuildAlert> alerts)

@@ -47,6 +47,12 @@ public sealed class AppSettings
     public string ProtectedSmtpPassword { get; set; } = "";
     [JsonIgnore] public string SmtpPassword { get; set; } = "";
 
+    // ---- aviso no Google Chat (webhook de entrada de um espaco)
+    public bool ChatEnabled { get; set; }
+    public string ProtectedChatWebhook { get; set; } = "";
+    /// <summary>O endereco do webhook equivale a uma senha: so vai para o arquivo protegido.</summary>
+    [JsonIgnore] public string ChatWebhook { get; set; } = "";
+
     /// <summary>Inicio da ultima varredura em que todos os diretorios foram lidos. A proxima consulta o SVN a partir desse dia.</summary>
     public DateTime? LastScan { get; set; }
 
