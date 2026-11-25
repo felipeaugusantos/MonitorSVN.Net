@@ -402,19 +402,44 @@
                             <DataGridTextColumn Header="Término" Binding="{Binding FinishedText}"
                                                 HeaderStyle="{StaticResource HeaderCenter}"
                                                 ElementStyle="{StaticResource CellCenter}" Width="64"/>
-                            <DataGridTextColumn Header="Pastas" Binding="{Binding FoldersText}"
-                                                HeaderStyle="{StaticResource HeaderCenter}" Width="140">
-                                <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource CellCenter}">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding FoldersMissing}" Value="True">
-                                                <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
-                                                <Setter Property="FontWeight" Value="SemiBold"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </DataGridTextColumn.ElementStyle>
-                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Header="Pastas" Width="140" HeaderStyle="{StaticResource HeaderCenter}">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                    ToolTip="{Binding FoldersTip}" Background="Transparent">
+                                            <TextBlock FontWeight="SemiBold">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="Local ✗"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding LocalClosed}" Value="True">
+                                                                <Setter Property="Text" Value="Local ✓"/>
+                                                                <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBlock Text=" · " Foreground="{DynamicResource TextMutedBrush}"/>
+                                            <TextBlock FontWeight="SemiBold">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Text" Value="Cloud ✗"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding CloudClosed}" Value="True">
+                                                                <Setter Property="Text" Value="Cloud ✓"/>
+                                                                <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTextColumn Header="Fechamento" Binding="{Binding ClosingText}"
                                                 HeaderStyle="{StaticResource HeaderCenter}"
                                                 ElementStyle="{StaticResource CellCenter}" Width="160"/>

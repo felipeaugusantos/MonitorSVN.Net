@@ -4,6 +4,8 @@ namespace MonitorSVN.Services;
 /// Cada versao gerada tem duas pastas irmas em "pasta raiz de geracao": a Local (<c>379.48.2.30.74.150</c>) e a Cloud
 /// (<c>379.48.2.30.74.150_CLOUD</c>). O Monitor tem uma linha so por versao, entao as duas sao tratadas a partir dela.
 /// </summary>
+public enum FolderState { Missing, Open, Closed }
+
 public static class VersionFolders
 {
     private const string CloudSuffix = "_CLOUD";
@@ -21,9 +23,33 @@ public static class VersionFolders
     /// Texto da coluna Fechamento com as duas pastas. Uma so tem situacao: mostra o texto dela (como sempre foi);
     /// as duas: "Local: ... · Cloud: ...".
     /// </summary>
-    /// <summary>Coluna "Pastas": mostra se a Local e a Cloud da versao existem em disco.</summary>
-    public static string FoldersText(bool local, bool cloud) =>
-        $"Local {(local ? "✓" : "✗")} · Cloud {(cloud ? "✓" : "✗")}";
+    /// <summary>
+    /// Situacao de uma pasta: so e <see cref="FolderState.Closed"/> quando existe, nao tem mais .exe/.dll/.bpl soltos
+    /// (passou pelo fechamento), tem ZIPs e nenhum fechamento esta rodando nela.
+    /// </summary>
+    public static FolderState StateOf(bool exists, int pendingFiles, int zipFiles, bool closingActive)
+    {
+        if (!exists) return FolderState.Missing;
+        return pendingFiles == 0 && zipFiles > 0 && !closingActive ? FolderState.Closed : FolderState.Open;
+    }
+
+    public static FolderState StateOf(string folder, bool closingActive)
+    {
+        if (!Directory.Exists(folder)) return FolderState.Missing;
+        try
+        {
+            var zips = Directory.EnumerateFiles(folder, "*.zip", SearchOption.TopDirectoryOnly).Count();
+            return StateOf(true, ClosingService.PendingFiles(folder).Count, zips, closingActive);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return FolderState.Open; }
+    }
+
+    public static string StateText(FolderState state) => state switch
+    {
+        FolderState.Closed => "fechada: tudo em ZIP",
+        FolderState.Open => "gerada, ainda não fechada",
+        _ => "pasta não encontrada"
+    };
 
     public static string ComposeColumn(string local, string cloud)
     {

@@ -620,19 +620,31 @@ public partial class MainWindow : Window
         return (text, hint);
     }
 
+    private int _folderTick;
+
+    /// <summary>
+    /// Pastas Local e Cloud de cada versao: verde so depois de passar pelo fechamento (nada de .exe/.dll/.bpl solto e
+    /// com ZIPs); vermelho se ainda nao foi fechada ou nao existe. Le o disco, entao roda a cada poucos segundos.
+    /// </summary>
+    private void RefreshFolderStates(bool force = false)
+    {
+        if (!force && _folderTick++ % 5 != 0) return;
+        foreach (var entry in _entries)
+        {
+            var local = FolderFor(entry, false);
+            var cloud = FolderFor(entry, true);
+            entry.LocalState = VersionFolders.StateOf(local, _closing.IsActive(local));
+            entry.CloudState = VersionFolders.StateOf(cloud, _closing.IsActive(cloud));
+        }
+    }
+
     private void RefreshClosingTexts()
     {
+        RefreshFolderStates();
         foreach (var entry in _entries)
         {
             var local = ClosingPart(FolderFor(entry, false), cloud: false);
             var cloud = ClosingPart(FolderFor(entry, true), cloud: true);
-            var hasLocal = Directory.Exists(FolderFor(entry, false));
-            var hasCloud = Directory.Exists(FolderFor(entry, true));
-            var folders = VersionFolders.FoldersText(hasLocal, hasCloud);
-            if (entry.FoldersText != folders) entry.FoldersText = folders;
-            // so cobra a pasta que falta de uma versao ja gerada; antes disso e normal nao existir
-            var missing = entry.Status == BuildStatus.Generated && !(hasLocal && hasCloud);
-            if (entry.FoldersMissing != missing) entry.FoldersMissing = missing;
             var text = VersionFolders.ComposeColumn(local.Text, cloud.Text);
             var hint = string.Join(Environment.NewLine + Environment.NewLine, new[] { local.Hint, cloud.Hint }.Where(h => h.Length > 0));
             if (entry.ClosingText != text) entry.ClosingText = text;
@@ -757,6 +769,7 @@ public partial class MainWindow : Window
 
     private void OnClosingFinished(ClosingJob job)
     {
+        RefreshFolderStates(force: true);
         RefreshClosingTexts();
         var chained = _chained.Remove(job.ProjectPath);
         if (chained && job.State == ClosingState.Done) _copyPrompts.Enqueue(job.ProjectPath);

@@ -56,24 +56,31 @@ public sealed class LogEntry : INotifyPropertyChanged
         set { if (_closingText == value) return; _closingText = value; OnChanged(); }
     }
 
-    private string _foldersText = "";
+    private MonitorSVN.Services.FolderState _localState;
+    private MonitorSVN.Services.FolderState _cloudState;
 
-    /// <summary>Se as pastas Local e Cloud da versao existem (coluna Pastas). Nao e gravado.</summary>
+    /// <summary>Situacao da pasta Local da versao (coluna Pastas). Nao e gravada.</summary>
     [JsonIgnore]
-    public string FoldersText
+    public MonitorSVN.Services.FolderState LocalState
     {
-        get => _foldersText;
-        set { if (_foldersText == value) return; _foldersText = value; OnChanged(); }
+        get => _localState;
+        set { if (_localState == value) return; _localState = value; OnChanged(); OnChanged(nameof(LocalClosed)); OnChanged(nameof(FoldersTip)); }
     }
 
-    private bool _foldersMissing;
+    [JsonIgnore]
+    public MonitorSVN.Services.FolderState CloudState
+    {
+        get => _cloudState;
+        set { if (_cloudState == value) return; _cloudState = value; OnChanged(); OnChanged(nameof(CloudClosed)); OnChanged(nameof(FoldersTip)); }
+    }
+
+    [JsonIgnore] public bool LocalClosed => _localState == MonitorSVN.Services.FolderState.Closed;
+    [JsonIgnore] public bool CloudClosed => _cloudState == MonitorSVN.Services.FolderState.Closed;
 
     [JsonIgnore]
-    public bool FoldersMissing
-    {
-        get => _foldersMissing;
-        set { if (_foldersMissing == value) return; _foldersMissing = value; OnChanged(); }
-    }
+    public string FoldersTip =>
+        $"Local: {MonitorSVN.Services.VersionFolders.StateText(_localState)}{Environment.NewLine}" +
+        $"Cloud: {MonitorSVN.Services.VersionFolders.StateText(_cloudState)}";
 
     private string _zipHint = "";
 

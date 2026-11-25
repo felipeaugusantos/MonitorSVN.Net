@@ -37,10 +37,29 @@ public class VersionFoldersTests
         Assert.Equal(expected, VersionFolders.ComposeColumn(local, cloud));
 
     [Theory]
-    [InlineData(true, true, "Local ✓ · Cloud ✓")]
-    [InlineData(true, false, "Local ✓ · Cloud ✗")]
-    [InlineData(false, true, "Local ✗ · Cloud ✓")]
-    [InlineData(false, false, "Local ✗ · Cloud ✗")]
-    public void Folders_text_shows_which_sibling_folders_exist(bool local, bool cloud, string expected) =>
-        Assert.Equal(expected, VersionFolders.FoldersText(local, cloud));
+    [InlineData(false, 0, 0, false, FolderState.Missing)]
+    [InlineData(true, 3, 0, false, FolderState.Open)]    // gerada, nada compactado
+    [InlineData(true, 2, 5, false, FolderState.Open)]    // fechamento incompleto: sobrou .exe/.dll
+    [InlineData(true, 0, 0, false, FolderState.Open)]    // sem arquivos nem ZIPs: nao provou fechamento
+    [InlineData(true, 0, 5, true, FolderState.Open)]     // fechamento rodando agora
+    [InlineData(true, 0, 5, false, FolderState.Closed)]  // tudo em ZIP
+    public void A_folder_is_closed_only_when_everything_is_zipped(bool exists, int pending, int zips, bool active, FolderState expected) =>
+        Assert.Equal(expected, VersionFolders.StateOf(exists, pending, zips, active));
+
+    [Fact]
+    public void State_is_read_from_the_disk()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "vf-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Assert.Equal(FolderState.Missing, VersionFolders.StateOf(dir, false));
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, "Autcom.exe"), "x");
+            Assert.Equal(FolderState.Open, VersionFolders.StateOf(dir, false));
+            File.Delete(Path.Combine(dir, "Autcom.exe"));
+            File.WriteAllText(Path.Combine(dir, "Autcom.zip"), "x");
+            Assert.Equal(FolderState.Closed, VersionFolders.StateOf(dir, false));
+        }
+        finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+    }
 }
