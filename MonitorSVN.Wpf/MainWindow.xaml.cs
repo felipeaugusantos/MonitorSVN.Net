@@ -735,7 +735,16 @@ public partial class MainWindow : Window
     private void Grid_PreviewMouseRightButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (FindParent<System.Windows.Controls.DataGridRow>(e.OriginalSource as DependencyObject) is { } row)
+        {
             row.IsSelected = true;
+            // o tipo (Local/Cloud) vem do nome da pasta: mostra qual vale para esta linha
+            if (row.Item is LogEntry entry)
+            {
+                var kind = ClosingService.IsCloud(entry.Version) ? ": Cloud" : ": Local";
+                mnuClose.Header = "Fechar versão" + kind;
+                mnuCopy.Header = "Copiar para a rede" + kind;
+            }
+        }
     }
 
     private void Grid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)

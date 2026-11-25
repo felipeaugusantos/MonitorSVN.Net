@@ -92,10 +92,10 @@ Uma linha **amarela** indica que o último fechamento gerou **menos ZIPs** do qu
 | Item | O que faz |
 |---|---|
 | Abrir no Jenkins | Abre o job da versão no navegador. |
-| Copiar revisão | Copia o número da revisão. |
-| **Fechar versão (Local/Cloud)** | Inicia o fechamento. Só em linhas **Gerado**. |
+| Copiar nº da revisão | Copia o número da revisão para a área de transferência. |
+| **Fechar versão: Local** ou **Cloud** | Inicia o fechamento (compacta os arquivos). O texto mostra o tipo da versão da linha. Só em linhas **Gerado**. |
 | **Cancelar fechamento** | Cancela um fechamento na fila ou em andamento. |
-| **Copiar versão (Local/Cloud)** | Abre a janela de cópia. Só em linhas **Gerado**. |
+| **Copiar para a rede: Local** ou **Cloud** | Abre a janela que copia os ZIPs para a pasta de destino na rede. Só em linhas **Gerado**. |
 | Reprocessar | Dispara o build de novo (use se o build travou ou se perdeu no Jenkins). |
 | Excluir (somente com erro) | Remove a linha com erro da lista. |
 
@@ -112,7 +112,7 @@ O fechamento roda o `comandosCMD\_FechamentoArquivos.bat` da pasta da versão. E
 **Passo a passo**
 
 1. Na tabela, clique com o botão direito numa linha com status **Gerado**.
-2. Escolha **Fechar versão (Local/Cloud)** e confirme.
+2. Escolha **Fechar versão: Local** (ou **Cloud**, conforme a versão) e confirme.
 3. Acompanhe a coluna **Fechamento**:
 
    | Texto | Significado |
@@ -158,7 +158,7 @@ A cópia envia os `.zip` da versão para a pasta de destino na rede, confere cad
 **Passo a passo**
 
 1. Feche a versão (seção anterior) e espere a coluna **Fechamento** mostrar *Concluído*.
-2. Clique com o botão direito na linha → **Copiar versão (Local/Cloud)**.
+2. Clique com o botão direito na linha → **Copiar para a rede: Local** (ou **Cloud**).
 3. A janela procura a pasta de destino com o nome da versão nas pastas de rede. Se achar **mais de uma**, escolha a
    correta na lista. Se **não achar**, ela oferece criar a pasta nova em
    `_VERSOES_INDIVIDUAIS\<versão>\<nome>`, por exemplo `02.30.74-150\379.48.2.30.74.150_LOCAL`.

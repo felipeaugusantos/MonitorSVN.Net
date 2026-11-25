@@ -341,11 +341,11 @@
                         <DataGrid.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Abrir no Jenkins" Click="MnuOpenJenkins_Click"/>
-                                <MenuItem Header="Copiar revisão" Click="MnuCopyRev_Click"/>
+                                <MenuItem Header="Copiar nº da revisão" Click="MnuCopyRev_Click"/>
                                 <Separator/>
-                                <MenuItem Header="Fechar versão (Local/Cloud)" Click="MnuClose_Click"/>
+                                <MenuItem x:Name="mnuClose" Header="Fechar versão" Click="MnuClose_Click"/>
                                 <MenuItem Header="Cancelar fechamento" Click="MnuCancelClosing_Click"/>
-                                <MenuItem Header="Copiar versão (Local/Cloud)" Click="MnuCopy_Click"/>
+                                <MenuItem x:Name="mnuCopy" Header="Copiar para a rede" Click="MnuCopy_Click"/>
                                 <Separator/>
                                 <MenuItem Header="Reprocessar" Click="MnuReprocess_Click"/>
                                 <MenuItem Header="Excluir (somente com erro)" Click="MnuDelete_Click"/>
