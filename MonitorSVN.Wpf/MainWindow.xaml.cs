@@ -664,6 +664,26 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>Clique em "Local" ou "Cloud" na coluna Pastas: abre a pasta no Explorer.</summary>
+    private void OpenFolder_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: LogEntry entry, Tag: string kind }) return;
+        e.Handled = true;
+        CollectSettings();
+        var folder = FolderFor(entry, cloud: kind == "Cloud");
+        if (!Directory.Exists(folder))
+        {
+            MessageDialog.Info(this, "Pasta não encontrada", $"A pasta {kind} desta versão não existe:{Environment.NewLine}{folder}");
+            return;
+        }
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true }); }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"Nao foi possivel abrir a pasta {folder}", ex);
+            MessageDialog.Info(this, "Pasta", $"Não foi possível abrir {folder}: {ex.Message}");
+        }
+    }
+
     private void MnuViewFolders_Click(object sender, RoutedEventArgs e)
     {
         if (grid.SelectedItem is not LogEntry entry) return;

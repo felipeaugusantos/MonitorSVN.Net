@@ -407,7 +407,8 @@
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                     ToolTip="{Binding FoldersTip}" Background="Transparent">
-                                            <TextBlock FontWeight="SemiBold">
+                                            <TextBlock FontWeight="SemiBold" Cursor="Hand" Tag="Local"
+                                                       MouseLeftButtonUp="OpenFolder_Click">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="Text" Value="Local ✗"/>
@@ -422,7 +423,8 @@
                                                 </TextBlock.Style>
                                             </TextBlock>
                                             <TextBlock Text=" · " Foreground="{DynamicResource TextMutedBrush}"/>
-                                            <TextBlock FontWeight="SemiBold">
+                                            <TextBlock FontWeight="SemiBold" Cursor="Hand" Tag="Cloud"
+                                                       MouseLeftButtonUp="OpenFolder_Click">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="Text" Value="Cloud ✗"/>

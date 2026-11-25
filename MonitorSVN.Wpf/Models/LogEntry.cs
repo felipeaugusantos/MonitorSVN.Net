@@ -80,7 +80,7 @@ public sealed class LogEntry : INotifyPropertyChanged
     [JsonIgnore]
     public string FoldersTip =>
         $"Local: {MonitorSVN.Services.VersionFolders.StateText(_localState)}{Environment.NewLine}" +
-        $"Cloud: {MonitorSVN.Services.VersionFolders.StateText(_cloudState)}";
+        $"Cloud: {MonitorSVN.Services.VersionFolders.StateText(_cloudState)}{Environment.NewLine}Clique em Local ou Cloud para abrir a pasta.";
 
     private string _zipHint = "";
 
